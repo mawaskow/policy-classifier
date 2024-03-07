@@ -9,14 +9,11 @@ Also, adding my own functions to extract annotation comments and highlights.
 Leaving text cleaning for later.
 """
 import json
-import logging
 import os
-from collections import defaultdict
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
 import argparse
-from pikepdf import Pdf
 from PyPDF2 import PdfReader
 from tqdm import tqdm
 import glob
@@ -34,71 +31,13 @@ def text_cleaning(text):
     text = text.translate(str.maketrans('', '', escapes))
     return text
 
-'''
-Trying to externalize determination of zip or dir status
-'''
-def get_filenames(input_path):
+def txt_to_dct(pdfReader):
     '''
-    
-    '''
-    filenames = []
-    is_zip = False
-    print(input_path[-4:]== ".zip")
-    if input_path[-4:]== ".zip":
-        is_zip = True
-    if is_zip:
-        with ZipFile(input_path) as myzip:
-            flst = list(map(lambda x: x.filename, filter(lambda x: not x.is_dir(), myzip.infolist())))
-            for file in flst:
-                filenames.append(BytesIO(myzip.read(file)))
-    else:
-        input_path = input_path+"\\**\\*.*"
-        for file in glob.glob(input_path, recursive=True):
-            filenames.append(file)
-    print(filenames)
-    return filenames
-
-def pdfs_to_txt_dct(input_path):
-    '''
-    Input:
-        path to input
-    Output:
-        error messages
+    Input: 
+        pdfReader (PyPDF2 object): Reader in use in loop
     Returns:
-        dictionary of pdfs text
+        doc_dict (dct): dictionary of single pdf with text
     '''
-    errors = []
-    # List files inside zip
-    filenames = get_filenames(input_path)
-    pdf_dict = {}
-    for file in tqdm(filenames):
-        try:
-            pdfReader = PdfReader(file)  # read file
-            # doc_dict holds the attributes of each pdf file
-            doc_dict = {i[1:]: str(j) for i, j in pdfReader.metadata.items()}
-            #doc_dict["Country"] = file.split("_")[-1][:-4]
-            doc_dict["Text"]=""
-            for page in range(len(pdfReader.pages)):
-                try:
-                    page_text = pdfReader.pages[page].extract_text()  # extracting pdf text
-                except TypeError as e:
-                    errors.append(f"Error extracting text on p.{page} of {file}")
-                    continue
-                page_text = text_cleaning(page_text)  # clean pdf text
-                doc_dict["Text"] += page_text  # concatenate pages' text
-            pdf_dict[os.path.splitext(os.path.basename(file))[0]] = doc_dict
-        except Exception as e:  # In case the file is corrupted
-            print(file,"error, look into recovering.")
-            print(e)
-            errors.append(f"Could not read {file}")
-    print(errors)
-    return pdf_dict
-
-'''
-Trying to externalize text reading within loop
-'''
-
-def extract_to_dct(pdfReader):
     doc_dict = {i[1:]: str(j) for i, j in pdfReader.metadata.items()}
     #doc_dict["Country"] = file.split("_")[-1][:-4]
     doc_dict["Text"]=""
@@ -108,14 +47,14 @@ def extract_to_dct(pdfReader):
         doc_dict["Text"] += page_text  # concatenate pages' text
     return doc_dict
     
-def pdf_to_txt_dct(input_path):
+def pdfs_to_txt_dct(input_path):
     '''
     Input:
-        path to input
+        input_path (str): path directory or zip folder of pdfs
     Output:
         error messages
     Returns:
-        dictionary of pdfs text
+        pdf_dict (dct): dictionary of pdfs text
     '''
     errors = []
     filenames = []
@@ -127,7 +66,7 @@ def pdf_to_txt_dct(input_path):
                 try:
                     pdfReader = PdfReader(BytesIO(myzip.read(file)))
                     # doc_dict holds the attributes of each pdf file
-                    doc_dict = extract_to_dct(pdfReader)
+                    doc_dict = txt_to_dct(pdfReader)
                     pdf_dict[os.path.splitext(os.path.basename(file))[0]] = doc_dict
                 except Exception as e:  # In case the file is corrupted
                     errors.append(f"Could not read {file} due to {e}")
@@ -139,7 +78,7 @@ def pdf_to_txt_dct(input_path):
             try:
                 pdfReader = PdfReader(file)  # read file
                 # doc_dict holds the attributes of each pdf file
-                doc_dict = extract_to_dct(pdfReader)
+                doc_dict = txt_to_dct(pdfReader)
                 pdf_dict[os.path.splitext(os.path.basename(file))[0]] = doc_dict
             except Exception as e:  # In case the file is corrupted
                 errors.append(f"Could not read {file} due to {e}")
@@ -147,97 +86,14 @@ def pdf_to_txt_dct(input_path):
     print(f"Successfully extracted {len(pdf_dict)}/{len(filenames)} pdfs")
     return pdf_dict
 
-def pdf_zip_to_txt_dct(input_zip):
-    '''
-    Input:
-        path to input zip file of pdfs
-    Output:
-        error messages
-    Returns:
-        dictionary of pdfs text
-    '''
-    errors = []
-    with ZipFile(input_zip) as myzip:
-        # List files inside zip
-        filenames = list(map(lambda x: x.filename, filter(lambda x: not x.is_dir(), myzip.infolist())))
-        pdf_dict = {}
-        for file in tqdm(filenames):
-            try:
-                pdfReader = PdfReader(BytesIO(myzip.read(file)))  # read file
-                # doc_dict holds the attributes of each pdf file
-                doc_dict = {i[1:]: str(j) for i, j in pdfReader.metadata.items()}
-                #doc_dict["Country"] = file.split("_")[-1][:-4]
-                doc_dict["Text"]=""
-                for page in range(len(pdfReader.pages)):
-                    try:
-                        page_text = pdfReader.pages[page].extract_text()  # extracting pdf text
-                    except TypeError as e:
-                        errors.append(f"Error extracting text on p.{page} of {file}")
-                        continue
-                    page_text = text_cleaning(page_text)  # clean pdf text
-                    doc_dict["Text"] += page_text  # concatenate pages' text
-                pdf_dict[os.path.splitext(os.path.basename(file))[0]] = doc_dict
-            except Exception as e:  # In case the file is corrupted
-                print(file,"error, look into recovering.")
-                print(e)
-                errors.append(f"Could not read {file}")
-    print(errors)
-    return pdf_dict
-
-def pdf_dir_to_txt_dct(input_dir):
-    '''
-    Input:
-        path to input directory containing pdfs
-    Output:
-        error messages
-    Returns:
-        dictionary of pdfs text
-    '''
-    dir_path = input_dir+"\\**\\*.*"
-    filenames = []
-    pdf_dict = {}
-    errors = []
-    for file in glob.glob(dir_path, recursive=True):
-        filenames.append(file)
-    for file in tqdm(filenames):
-            try:
-                pdfReader = PdfReader(file)  # read file
-                # doc_dict holds the attributes of each pdf file
-                doc_dict = {i[1:]: str(j) for i, j in pdfReader.metadata.items()}
-                #doc_dict["Country"] = file.split("_")[-1][:-4]
-                doc_dict["Text"]=""
-                for page in range(len(pdfReader.pages)):
-                    try:
-                        page_text = pdfReader.pages[page].extract_text()  # extracting pdf text
-                    except TypeError as e:
-                        errors.append(f"Error extracting text on p.{page} of {file}")
-                        continue
-                    #page_text = text_cleaning(page_text)  # clean pdf text
-                    doc_dict["Text"] += page_text  # concatenate pages' text
-                pdf_dict[os.path.splitext(os.path.basename(file))[0]] = doc_dict
-            except Exception as e:  # In case the file is corrupted
-                print(file,"error, look into recovering.")
-                print(e)
-                errors.append(f"Could not read {file}")
-    print(errors)
-    return pdf_dict
-
 if __name__ == '__main__':
-    
     input_zip = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/onedrive_docs.zip"
     output_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs"
     input_dir= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/latam_pols"
 
-    #pdf_dict = pdf_zip_to_txt_dct(input_zip)
-    #pdf_dict = pdf_dir_to_txt_dct(input_dir)
-    #pdf_dict = pdfs_to_txt_dct(input_zip)
-    pdf_dict = pdf_to_txt_dct(input_dir)
+    pdf_dict = pdfs_to_txt_dct(input_dir)
     with open(os.path.join(output_path, 'pdf_texts.json'), 'w', encoding="utf-8") as outfile:
         json.dump(pdf_dict, outfile, ensure_ascii=False, indent=4)
-
-
-
-
 
 
     '''
