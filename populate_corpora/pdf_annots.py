@@ -60,6 +60,8 @@ def pdf_comments_to_sim_dct(file_path):
         return {}
 
 def pdf_highlight_to_dct(file_path):
+    # https://medium.com/@vinitvaibhav9/extracting-pdf-highlights-using-python-9512af43a6d
+    # there is a bit of noise, other text getting scraped in from the highlight coordinates, and duplications of text.
     highlt_dct = {}
     doc = fitz.open(file_path)
     # traverse pdf by page
