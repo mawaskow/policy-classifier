@@ -7,11 +7,12 @@ In this version: one function to get full text from folder of pdfs, one function
 Leaving the file saving for another function so that it's easier to just pass the dictionaries between functions instead of file I/O 
 Also, adding my own functions to extract annotation comments and highlights.
 Leaving text cleaning for later.
+
+Eventually adapt PDF annotation fxns to handle zip file inputs
 """
 import json
 import os
 from io import BytesIO
-from pathlib import Path
 from zipfile import ZipFile
 import argparse
 from PyPDF2 import PdfReader
@@ -19,18 +20,9 @@ import fitz
 from tqdm import tqdm
 import glob
 
-def text_cleaning(text):
-    """
-    Cleans a piece of text by removing escaped characters.
-    Args:
-        text (str): string with text
-    Returns:
-        str: cleaned piece of text
-    """
-    # Remove escaped characters
-    escapes = ''.join([chr(char) for char in range(1, 32)])
-    text = text.translate(str.maketrans('', '', escapes))
-    return text
+##########################################################################################
+#   Get full text of PDFs
+##########################################################################################
 
 def txt_to_dct(pdfReader):
     '''
@@ -44,7 +36,7 @@ def txt_to_dct(pdfReader):
     doc_dict["Text"]=""
     for page in range(len(pdfReader.pages)):
         page_text = pdfReader.pages[page].extract_text()  # extracting pdf text
-        page_text = text_cleaning(page_text)  # clean pdf text
+        #page_text = text_cleaning(page_text)  # clean pdf text
         doc_dict["Text"] += page_text  # concatenate pages' text
     return doc_dict
     
@@ -87,14 +79,18 @@ def pdfs_to_txt_dct(input_path):
     print(f"Successfully extracted {len(pdf_dict)}/{len(filenames)} pdfs")
     return pdf_dict
 
+##########################################################################################
+#   Get annotations from PDFs
+##########################################################################################
+
 def pdf_to_cmt_dct(file_path):
-    """
+    '''
     This function extracts comments from a PDF file and returns them as a dct.
     Parameters:
-    file_path (str): The path to the PDF file
+    file_path (str): The path to the PDF file containing comments
     Returns:
     list: A list of comments extracted from the PDF file
-    """
+    '''
     pdf_cmt_dct = {}
     try:
         # Open the PDF file
@@ -125,9 +121,17 @@ def pdf_to_cmt_dct(file_path):
     return pdf_cmt_dct
 
 def pdf_highlight_to_dct(file_path):
+    '''
     # https://medium.com/@vinitvaibhav9/extracting-pdf-highlights-using-python-9512af43a6d
     # there is a bit of noise: other text getting scraped in from the highlight coordinates and duplications of text.
     # may want to look into other highlight/annotation extraction packages
+
+    This function extracts highlighted text from a PDF file and returns it in a dct.
+    Parameters:
+    file_path (str): The path to the PDF file containing highlighted text
+    Returns:
+    highlight_dict (dct): A dct of the highlighted text extracted from the PDF file
+    '''
     highlt_dct = {}
     doc = fitz.open(file_path)
     # traverse pdf by page
@@ -163,7 +167,17 @@ def pdf_highlight_to_dct(file_path):
             annot = annot.next
     return highlt_dct
 
+### Combines above two fxns
+
 def pdfs_to_annot_dct(input_path):
+    '''
+    This function extracts highlighted text and comments from a PDF file, attempts to match them together, 
+    and returns them in a list.
+    Parameters:
+    file_path (str): The path to the directory of PDF files containing comments and highlighted text
+    Returns:
+    pdf_dct (dct): A dictionary of all the pdfs' connected annotations
+    '''
     # can only handle normal folders right now
     dir_path = input_path+"\\**\\*.*"
     filenames = []
@@ -199,7 +213,7 @@ def pdfs_to_annot_dct(input_path):
     return pdf_dct
 
 if __name__ == '__main__':
-    input_zip = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/onedrive_docs.zip"
+    #input_zip = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/onedrive_docs.zip"
     output_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs"
     input_dir= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/latam_pols"
     #pdf_dict = pdfs_to_txt_dct(input_dir)
