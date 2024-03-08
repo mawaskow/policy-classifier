@@ -224,11 +224,6 @@ if __name__ == '__main__':
 
 
     '''
-    # label cleaning
-    label = cmts[p][i].split("\n")[0]
-    label = label.split("\r")[0][3:]
-
-
     # cmd line example
     # python ./src/make_pdfs.py -i "C:/Users/Ales/Documents/GitHub/policy-data-analyzer/tasks/extract_text/input/onedrive_docs.zip" -o "C:/Users/Ales/Documents/GitHub/policy-data-analyzer/tasks/extract_text/output"
     parser = argparse.ArgumentParser()
