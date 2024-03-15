@@ -15,7 +15,7 @@ import time
 import csv
 import sys
 import argparse
-import tqdm
+from tqdm import tqdm
 import textwrap
 
 # Model libraries
@@ -60,23 +60,17 @@ QUERIES_DCT = {
 "Para la ejecución de programas de capacitación, adiestramiento y otorgamiento de becas para la preparación de personal , así como para el desarrollo de tecnología en actividades directamente relacionadas con las operaciones objeto del contrato" : "Technical_assistance-Guatemala",
 "Apoyo técnico y en formulación de proyectos y conexión con mercados" : "Technical_assistance-El Salvador"}
 
-def labeled_sentences_from_dataset(dataset):
-    sentence_tags_dict = {}
-    for document in dataset.values():
-        sentence_tags_dict.update(document['sentences'])
-    return sentence_tags_dict
-
-def create_sentence_embeddings(model, sentences_dict):
-    embeddings = {}
-    for sentence_id, sentence_map in sentences_dict.items():
-        embeddings[sentence_id] = model.encode(sentence_map['text'].lower(), show_progress_bar=False)
+def create_sentence_embeddings(model, sentences):
+    embeddings = []
+    for sentence in sentences:
+        embeddings.append(model.encode(sentence.lower(), show_progress_bar=False))
     return embeddings
     
-def sentence_similarity_search(model, queries, sentence_embeddings, sentences, similarity_limit, results_limit, cuda, prog_bar):
+def sentence_similarity_search(model, queries, embeddings, sentences, similarity_limit, results_limit, cuda, prog_bar):
     results = {}
-    for query in tqdm.tqdm(queries):
+    for query in tqdm(queries):
         Ti = time.perf_counter()
-        similarities = get_distance(model, sentence_embeddings, sentences, query, similarity_limit, cuda, prog_bar)
+        similarities = get_distance(model, embeddings, sentences, query, similarity_limit, cuda, prog_bar)
         results[query] = similarities[0:results_limit] #results[transformer][query] = similarities[0:results_limit]
         Tf = time.perf_counter()
         print(f"Similarity search for query '{query}' has been done in {Tf - Ti:0.2f}s.")
@@ -93,21 +87,21 @@ def check_dictionary_values(dictionary):
     print(check_incentive)
     print(check_country)
 
-def get_distance(model, sentence_emb, sentences_dict, query, similarity_treshold, cuda, prog_bar):
+def get_distance(model, embeddings, sentences, query, similarity_treshold, cuda, prog_bar):
     if cuda:
         query_embedding = model.encode(query.lower(), show_progress_bar=prog_bar, device='cuda')
     else:
         query_embedding = model.encode(query.lower(), show_progress_bar=prog_bar)
     highlights = []
-    for sentence in sentences_dict.keys():
+    for i in range(len(sentences)):
         try:
-            sentence_embedding = sentence_emb[sentence]
+            sentence_embedding = embeddings[i]
             score = 1 - distance.cosine(sentence_embedding, query_embedding)
             if score > similarity_treshold:
-                highlights.append([sentence, score, sentences_dict[sentence]['text']])
+                highlights.append([i, score, sentences[i]])
         except KeyError as err:
-            print(sentence)
-            print(sentence_emb.keys())
+            print(sentences[i])
+            print(embeddings[i])
             print(err)
     highlights = sorted(highlights, key = lambda x : x[1], reverse = True)
     return highlights
@@ -121,30 +115,9 @@ def show_results(results_dictionary):
                 print(len(results_dictionary[key1][key2]))
                 print(results_dictionary[key1][key2])
             i += 1
-
-# Adding the rank to each result
-def add_rank(results_dictionary):
-#     for model in results_dictionary:
-    for keyword in results_dictionary:#[model]:
-        i = 1
-        for result in results_dictionary[keyword]:#[model][keyword]:
-            result.insert(1, i)
-            i += 1
-    return results_dictionary
-
-# For experiments 2 and 3 this function is to save results in separate csv files
-def save_results_as_separate_csv(results_dictionary, queries_dictionary, path):
-#     for model, value in results_dictionary.items():
-    for exp_title, result in results_dictionary.items():#value.items():
-        filename = queries_dictionary[exp_title]
-        file = path + filename + ".csv"
-        with open(file, 'w', newline='', encoding='utf-8') as f:
-            write = csv.writer(f)
-            write.writerows(result)
-#             print(filename)
     
 ############################################################################
-def run_embedder(sample=True, cuda=False, input_path=".", output_path="."):
+def run_embedder(sample=True, cuda=False, data=[]):
     script_info = "Running "
     if sample:
         script_info += "sample"
@@ -155,31 +128,16 @@ def run_embedder(sample=True, cuda=False, input_path=".", output_path="."):
     else:
         script_info += " on CPU."
     print(script_info)
-    
-    policy_dict = {}
-    onlyfiles = [f for f in listdir(input_path) if isfile(join(input_path, f))]
 
-    for f in onlyfiles:
-        with open(join(input_path, f), 'r') as file:
-            data = json.load(file)
-        policy_dict = {**policy_dict, **data}
-
-    sentences = labeled_sentences_from_dataset(policy_dict)
+    sentences = data
 
     if sample:
         #random.seed(9)
-        sample_sentence_ids = random.sample(list(sentences), 10)
-        sample_sentences = {}
-        for s_id in sample_sentence_ids:
-            sample_sentences.update({s_id: sentences[s_id]})
-        sentences = sample_sentences
+        sentences = random.sample(sentences, 10)
 
     Ti = time.perf_counter()
 
     transformer_name = 'xlm-r-bert-base-nli-stsb-mean-tokens'
-
-    filename = "Embeddings.json"
-    file = output_path + filename
 
     if cuda:
         model = SentenceTransformer(transformer_name, device="cuda")
@@ -194,12 +152,9 @@ def run_embedder(sample=True, cuda=False, input_path=".", output_path="."):
 
     print(f"The building of a sentence embedding database in the current models has taken {Tf - Ti:0.2f}s.")
 
-    with open(file, 'w+') as fp:
-        json.dump(embs, fp, cls = NumpyArrayEncoder)
-
     return embs, sentences, model
 
-def run_queries(embs, sentences, model, cuda=False, output_path=".", sim_thresh=0.2, res_lim=1000):
+def run_queries(embs, sentences, model, cuda=False, sim_thresh=0.2, res_lim=1000):
     prog_bar = False
     print("Now running queries.")
 
@@ -211,53 +166,62 @@ def run_queries(embs, sentences, model, cuda=False, output_path=".", sim_thresh=
 
     results_dict = sentence_similarity_search(model, queries, embs, sentences, sim_thresh, res_lim, cuda, prog_bar)
 
-    file = output_path + "Pre_tagged.json"
-    with open(file, 'w+') as fp:
-        json.dump(results_dict, fp, indent=4)
+    return results_dict
 
-def add_rank(file, query_dct, output_path):
-    with open(file, "r") as f:
-        results_ = json.load(f)
-    results = add_rank(results_)
-    # Save the results as separete csv files
-    save_results_as_separate_csv(results, query_dct, output_path)
-
-def convert_pretagged(input_path, output_path):
+def convert_pretagged(pre_lab):
+    '''
+    Takes pre_tagged dct generated in assisted_labelling.py
+    resolves the queries and keys
+    '''
     qdct = QUERIES_DCT.copy()
     for query in list(qdct):
         raw_label = qdct[query]
         label = raw_label.split("-")[0]
         label = label.replace("_", " ")
         qdct[query] = label
-    with open(input_path, "r") as f:
-        pre_lab = json.load(f)
     new_dct = {}
-    for qry in tqdm.tqdm(list(pre_lab)):
+    for qry in tqdm(list(pre_lab)):
         label = qdct[qry]
         for sent_unit in pre_lab[qry]:
             # the format has the sentence as the last element in the sublist
             sentence = sent_unit[-1]
             new_dct[sentence] = label
-    with open(output_path, 'w+') as fp:
-        json.dump(new_dct, fp, indent=2)
+    return new_dct
+
+def pre_tag_parse(pretag):
+    '''
+    Preps dct for training
+    '''
+    sentences = []
+    labels = []
+    for sentence in list(pretag):
+        sentences.append(sentence)
+        labels.append(pretag[sentence])
+    return sentences, labels
 
 def main():
-    with open("C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/orig_queries_dct.json", 'w+') as fp:
-        json.dump(QUERIES_DCT, fp, indent=2)
-
-
     st = time.time()
-    sample = True
+    sample = False
     cuda = True
-    input_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs"
-    output_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs"
+    input_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/full_text_sents.json"
+    output_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/"
     if sample:
         sim_thresh = 0.2
     else:
         sim_thresh = 0.5
     ##############
-    embs, sentences, model = run_embedder(sample, cuda, input_path, output_path)
-    run_queries(embs, sentences, model, cuda, output_path, sim_thresh=0.4, res_lim=1000)
+    with open(input_path,"r", encoding="utf-8") as f:
+        sentences = json.load(f)
+    embs, sentences, model = run_embedder(sample, cuda, sentences)
+    
+    pret_dct = run_queries(embs, sentences, model, cuda, sim_thresh=0.5, res_lim=1000)
+    sentences, labels = pre_tag_parse(pret_dct)
+
+    with open(os.path.join(output_path, 'pret_sents.json'), 'w', encoding="utf-8") as outfile:
+        json.dump(sentences, outfile, ensure_ascii=False, indent=4)
+    with open(os.path.join(output_path, 'pret_labels.json'), 'w', encoding="utf-8") as outfile:
+        json.dump(labels, outfile, ensure_ascii=False, indent=4)
+
     ##############
     et = time.time()-st
     print("Time elapsed total:", et//60, "min and", round(et%60), "sec")
