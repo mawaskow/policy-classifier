@@ -33,32 +33,32 @@ class NumpyArrayEncoder(JSONEncoder):
         return JSONEncoder.default(self, obj)
     
 QUERIES_DCT = {
-    "Otorgamiento de estímulos crediticios por parte de el estado" : "Credit-México",
-"Estos créditos podrían beneficiar a sistemas productivos asociados a la pequeña y mediana producción" : "Credit-Perú",
-"Se asocia con créditos de enlace del Banco del Estado" : "Credit-Chile", 
-"Acceso al programa de garantía crediticia para la actividad económica" : "Credit-Guatemala",
-"El banco establecerá líneas de crédito para que el sistema financiero apoye la pequeña, mediana y microempresa" : "Credit-El Salvador",
-"Dentro de los incentivos económicos se podrá crear un bono para retribuir a los propietarios por los bienes y servicios generados." : "Direct_payment-México",
-"Acceso a los fondos forestales para el pago de actividad" : "Direct_payment-Perú",
-"Se bonificará el 90% de los costos de repoblación para las primeras 15 hectáreas y de un 75% respecto las restantes" : "Direct_payment-Chile",
-"El estado dará un incentivo que se pagará una sola vez a los propietarios forestales" : "Direct_payment-Guatemala",
-"Incentivos en dinero para cubrir los costos directos e indirectos del establecimiento y manejo de areas de producción" : "Direct_payment-El Salvador",
-"Toda persona física o moral que cause daños estará obligada a repararlo o compensarlo" : "Fine-México",
-"Disminuir los riesgos para el inversionista implementando mecanismos de aseguramiento" : "Guarantee-México",
-"Podrá garantizarse el cumplimiento de la actividad mediante fianza otorgada a favor del estado por cualquiera de las afianzadoras legalmente autorizadas." : "Guarantee-Guatemala",
-"El sujeto de derecho podrá recibir insumos para la instalación y operación de infraestructuras para la actividad económica." : "Supplies-México",
-"Se facilitará el soporte técnico a  través de la utilización de guías, manuales, protocolos, paquetes tecnológicos, procedimientos, entre otros." : "Supplies-Perú",
-"Se concederán incentivos en especie para fomentar la actividad en forma de insumos" : "Supplies-El Salvador",
-"Se otorgarán incentivos fiscales para la actividad primaria y también la actividad de transformación" : "Tax_deduction-México",
-"De acuerdo con los lineamientos aprobados se concederá un 25% de descuento en el pago del derecho de aprovechamiento" : "Tax_deduction-Perú",
-"Las bonificaciones percibidas o devengadas se considerarán como ingresos diferidos en el pasivo circulante y no se incluirán para el cálculo de la tasa adicional ni constituirán renta para ningún efecto legal hasta el momento en que se efectúe la explotación o venta" : "Tax_deduction-Chile",
-"Los contratistas que suscriban contratos de exploración y/o explotación, quedan exentos de cualquier impuesto sobre los dividendos, participaciones y utilidades" : "Tax_deduction-Guatemala",
-"Exención de los derechos e impuestos, incluyendo el Impuesto a la Transferencia de Bienes Muebles y a la Prestación de Servicios, en la importación de sus bienes, equipos y accesorios, maquinaria, vehículos, aeronaves o embarcaciones" : "Tax_deduction-El Salvador",
-"Se facilitará formación Permanente Además del acompañamiento técnico, los sujetos de derecho participarán en un proceso permanente de formación a lo largo de todo el año, que les permita enriquecer sus habilidades y capacidades " : "Technical_assistance-México",
-"Contribuir en la promoción para la gestión, a través de la capacitación, asesoramiento, asistencia técnica y educación de los usuarios" : "Technical_assistance-Perú",
-"Asesoría prestada al usuario por un operador acreditado, conducente a elaborar, acompañar y apoyar la adecuada ejecución técnica en terreno de aquellas prácticas comprometidas en el Plan de Manejo" : "Technical_assistance-Chile",
-"Para la ejecución de programas de capacitación, adiestramiento y otorgamiento de becas para la preparación de personal , así como para el desarrollo de tecnología en actividades directamente relacionadas con las operaciones objeto del contrato" : "Technical_assistance-Guatemala",
-"Apoyo técnico y en formulación de proyectos y conexión con mercados" : "Technical_assistance-El Salvador"}
+    "Otorgamiento de estímulos crediticios por parte de el estado" : "Credit",
+"Estos créditos podrían beneficiar a sistemas productivos asociados a la pequeña y mediana producción" : "Credit",
+"Se asocia con créditos de enlace del Banco del Estado" : "Credit", 
+"Acceso al programa de garantía crediticia para la actividad económica" : "Credit",
+"El banco establecerá líneas de crédito para que el sistema financiero apoye la pequeña, mediana y microempresa" : "Credit",
+"Dentro de los incentivos económicos se podrá crear un bono para retribuir a los propietarios por los bienes y servicios generados." : "Direct_payment",
+"Acceso a los fondos forestales para el pago de actividad" : "Direct_payment",
+"Se bonificará el 90% de los costos de repoblación para las primeras 15 hectáreas y de un 75% respecto las restantes" : "Direct_payment",
+"El estado dará un incentivo que se pagará una sola vez a los propietarios forestales" : "Direct_payment",
+"Incentivos en dinero para cubrir los costos directos e indirectos del establecimiento y manejo de areas de producción" : "Direct_payment",
+"Toda persona física o moral que cause daños estará obligada a repararlo o compensarlo" : "Fine",
+"Disminuir los riesgos para el inversionista implementando mecanismos de aseguramiento" : "Guarantee",
+"Podrá garantizarse el cumplimiento de la actividad mediante fianza otorgada a favor del estado por cualquiera de las afianzadoras legalmente autorizadas." : "Guarantee",
+"El sujeto de derecho podrá recibir insumos para la instalación y operación de infraestructuras para la actividad económica." : "Supplies",
+"Se facilitará el soporte técnico a  través de la utilización de guías, manuales, protocolos, paquetes tecnológicos, procedimientos, entre otros." : "Supplies",
+"Se concederán incentivos en especie para fomentar la actividad en forma de insumos" : "Supplies",
+"Se otorgarán incentivos fiscales para la actividad primaria y también la actividad de transformación" : "Tax_deduction",
+"De acuerdo con los lineamientos aprobados se concederá un 25% de descuento en el pago del derecho de aprovechamiento" : "Tax_deduction",
+"Las bonificaciones percibidas o devengadas se considerarán como ingresos diferidos en el pasivo circulante y no se incluirán para el cálculo de la tasa adicional ni constituirán renta para ningún efecto legal hasta el momento en que se efectúe la explotación o venta" : "Tax_deduction",
+"Los contratistas que suscriban contratos de exploración y/o explotación, quedan exentos de cualquier impuesto sobre los dividendos, participaciones y utilidades" : "Tax_deduction",
+"Exención de los derechos e impuestos, incluyendo el Impuesto a la Transferencia de Bienes Muebles y a la Prestación de Servicios, en la importación de sus bienes, equipos y accesorios, maquinaria, vehículos, aeronaves o embarcaciones" : "Tax_deduction",
+"Se facilitará formación Permanente Además del acompañamiento técnico, los sujetos de derecho participarán en un proceso permanente de formación a lo largo de todo el año, que les permita enriquecer sus habilidades y capacidades " : "Technical_assistance",
+"Contribuir en la promoción para la gestión, a través de la capacitación, asesoramiento, asistencia técnica y educación de los usuarios" : "Technical_assistance",
+"Asesoría prestada al usuario por un operador acreditado, conducente a elaborar, acompañar y apoyar la adecuada ejecución técnica en terreno de aquellas prácticas comprometidas en el Plan de Manejo" : "Technical_assistance",
+"Para la ejecución de programas de capacitación, adiestramiento y otorgamiento de becas para la preparación de personal , así como para el desarrollo de tecnología en actividades directamente relacionadas con las operaciones objeto del contrato" : "Technical_assistance",
+"Apoyo técnico y en formulación de proyectos y conexión con mercados" : "Technical_assistance"}
 
 def create_sentence_embeddings(model, sentences):
     embeddings = []
@@ -115,8 +115,40 @@ def show_results(results_dictionary):
                 print(len(results_dictionary[key1][key2]))
                 print(results_dictionary[key1][key2])
             i += 1
-    
+
 ############################################################################
+
+def sentence_dissimilarity_search(model, queries, embeddings, sentences, dissimilarity_limit, results_limit, cuda, prog_bar):
+    results = {}
+    for query in tqdm(queries):
+        Ti = time.perf_counter()
+        similarities = get_r_distance(model, embeddings, sentences, query, dissimilarity_limit, cuda, prog_bar)
+        results[query] = similarities[0:results_limit] #results[transformer][query] = similarities[0:results_limit]
+        Tf = time.perf_counter()
+        print(f"Similarity search for query '{query}' has been done in {Tf - Ti:0.2f}s.")
+    return results
+
+def get_r_distance(model, embeddings, sentences, query, dissimilarity_treshold, cuda, prog_bar):
+    if cuda:
+        query_embedding = model.encode(query.lower(), show_progress_bar=prog_bar, device='cuda')
+    else:
+        query_embedding = model.encode(query.lower(), show_progress_bar=prog_bar)
+    highlights = []
+    for i in range(len(sentences)):
+        try:
+            sentence_embedding = embeddings[i]
+            score = 1 - distance.cosine(sentence_embedding, query_embedding)
+            if score < dissimilarity_treshold:
+                highlights.append([i, score, sentences[i]])
+        except KeyError as err:
+            print(sentences[i])
+            print(embeddings[i])
+            print(err)
+    highlights = sorted(highlights, key = lambda x : x[1], reverse = True)
+    return highlights
+
+############################################################################
+
 def run_embedder(sample=True, cuda=False, data=[]):
     script_info = "Running "
     if sample:
@@ -168,6 +200,20 @@ def run_queries(embs, sentences, model, cuda=False, sim_thresh=0.2, res_lim=1000
 
     return results_dict
 
+def run_binary(embs, sentences, model, cuda=False, output_path=".",sim_thresh=0.2, res_lim=1000):
+    prog_bar = False
+    print("Now running queries.")
+
+    queries = []
+    for query in QUERIES_DCT:
+        queries.append(query)
+
+    #check_dictionary_values(queries_dict)
+
+    results_dct = sentence_dissimilarity_search(model, queries, embs, sentences, sim_thresh, res_lim, cuda, prog_bar)
+
+    return results_dct
+
 def convert_pretagged(pre_lab):
     '''
     Takes pre_tagged dct generated in assisted_labelling.py
@@ -194,10 +240,21 @@ def pre_tag_parse(pretag):
     '''
     sentences = []
     labels = []
-    for sentence in list(pretag):
-        sentences.append(sentence)
-        labels.append(pretag[sentence])
+    for query in list(pretag):
+        for result in pretag[query]:
+            sentences.append(result[2])
+            labels.append(QUERIES_DCT[query])
     return sentences, labels
+
+def pre_tag_parse_bin(pretag):
+    '''
+    Preps dct for training
+    '''
+    sentences = []
+    for query in list(pretag):
+        for result in pretag[query]:
+            sentences.append(result[2])
+    return sentences
 
 def main():
     st = time.time()
@@ -212,15 +269,22 @@ def main():
     ##############
     with open(input_path,"r", encoding="utf-8") as f:
         sentences = json.load(f)
-    embs, sentences, model = run_embedder(sample, cuda, sentences)
+    embs, s_sentences, model = run_embedder(sample, cuda, sentences)
     
-    pret_dct = run_queries(embs, sentences, model, cuda, sim_thresh=0.5, res_lim=1000)
+    pret_dct = run_queries(embs, s_sentences, model, cuda, sim_thresh=0.5, res_lim=1000)
     sentences, labels = pre_tag_parse(pret_dct)
 
+    bin_dct = run_binary(embs, s_sentences, model, cuda, 0.2, res_lim=1000)
+    neg_sents = pre_tag_parse_bin(bin_dct)
+
+    with open(os.path.join(output_path, 'pret_dct.json'), 'w', encoding="utf-8") as outfile:
+        json.dump(bin_dct, outfile, ensure_ascii=False, indent=4)
     with open(os.path.join(output_path, 'pret_sents.json'), 'w', encoding="utf-8") as outfile:
         json.dump(sentences, outfile, ensure_ascii=False, indent=4)
     with open(os.path.join(output_path, 'pret_labels.json'), 'w', encoding="utf-8") as outfile:
         json.dump(labels, outfile, ensure_ascii=False, indent=4)
+    with open(os.path.join(output_path, 'neg_bin_sents.json'), 'w', encoding="utf-8") as outfile:
+        json.dump(neg_sents, outfile, ensure_ascii=False, indent=4)
 
     ##############
     et = time.time()-st

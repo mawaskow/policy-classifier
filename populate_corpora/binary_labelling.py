@@ -227,9 +227,8 @@ def convert_pretagged(input_path, output_path):
         json.dump(sentences, fp, indent=2)
 
 def main():
-    '''
     st = time.time()
-    sample = False
+    sample = True
     cuda = True
     input_path = "C:/Users/Allie/Documents/GitHub/policy-data-analyzer/tasks/text_preprocessing/output/new/"
     output_path = "C:/Users/Allie/Documents/GitHub/policy-data-analyzer/tasks/data_augmentation/output/EXP1/"
@@ -251,7 +250,7 @@ def main():
     input_path= "C:\\Users\\allie\\Documents\\GitHub\\policy-data-analyzer\\tasks\\data_augmentation\\output\\EXP1\\Pre_tagged_0.5.json"
     output_path= "C:\\Users\\allie\\Documents\\GitHub\\policy-data-analyzer\\tasks\\data_augmentation\\output\\EXP1\\Pre_tagged_0.5_sentences.json"
     convert_pretagged(input_path, output_path)
-    
+    '''
 
 if __name__ == '__main__':
     main()
