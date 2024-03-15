@@ -10,19 +10,13 @@ import time
 import cupy as cp
 import json
 
-from data_loading.src.utils import *
-#from model_evaluation.src.model_evaluator import *
-from data_augmentation.src.zero_shot_classification.latent_embeddings_classifier import *
+from latent_embeddings_classifier import *
 
-def data_load(incentv_path, nonincv_path):
+def data_load(incentives, nonincentives):
     '''
     eventually going to split this into subfunctions
     but at the moment we are just trying to adapt this from the jupiter notebook
     '''
-    with open(incentv_path, "r", encoding="utf-8") as f:
-        incentives = json.load(f)
-    with open(nonincv_path, "r", encoding="utf-8") as f:
-        nonincentives = json.load(f)
 
     incent_lbls = ["incentive"]*len(incentives)
     noninc_lbls = ["non-incentve"]*len(nonincentives)
@@ -63,10 +57,15 @@ def main():
     # load spacy model
     #es_nlp = spacy.load('es_core_news_lg')
 
-    sim_sent = "C:\\Users\\allie\\Documents\\GitHub\\policy-data-analyzer\\tasks\\data_augmentation\\output\\EXP1\\Pre_tagged_0.5_sentences.json"
-    dissim_sent = "C:\\Users\\allie\\Documents\\GitHub\\policy-data-analyzer\\tasks\\data_augmentation\\output\\EXP1\\Pre_tagged_dis_sentences.json"
+    input_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/"
+
+    with open(os.path.join(input_path,"pret_sents.json"), "r", encoding="utf-8") as f:
+        sim_sent = json.load(f)
+    with open(os.path.join(input_path,"neg_bin_sents.json"), "r", encoding="utf-8") as f:
+        dissim_sent = json.load(f)
 
     data_load(sim_sent, dissim_sent)
+
     et = time.time()-st
     print("Time elapsed total:", et//60, "min and", round(et%60), "sec")
 
