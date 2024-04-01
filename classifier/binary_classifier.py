@@ -1,3 +1,7 @@
+'''
+This script is based off of the original repository's jupyter notebook
+'''
+
 import spacy
 import os
 from sklearn.model_selection import train_test_split
