@@ -3,10 +3,15 @@
 # See documentation in:
 # https://docs.scrapy.org/en/latest/topics/items.html
 
-import scrapy
+from scrapy.item import Item, Field
 
 
-class PolicyScrapingItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+class IrishGovPolicy(Item):
+	title = Field()
+	link = Field()
+	publication_date = Field()
+	department = Field()
+	type = Field()
+	file_urls = Field()
+	hash_name = Field()
+	pass
