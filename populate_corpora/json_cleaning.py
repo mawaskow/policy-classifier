@@ -122,7 +122,49 @@ def get_nltk_sents(txt: str, tokenizer: nltk.PunktSentenceTokenizer, extra_abbre
         tokenizer._params.abbrev_types.update(extra_abbreviations)
     return tokenizer.tokenize(txt)
 
-###################################################
+def format_sents_for_output(sents, doc_id):
+    """
+    Fxn from Firebanks-Quevedo repo
+    """
+    formatted_sents = {}
+
+    for i, sent in enumerate(sents):
+        formatted_sents.update({f"{doc_id}_sent_{i}": {"text": sent, "label": []}})
+
+    return formatted_sents
+
+def get_clean_text_dct(pdf_conv, tokenizer):
+    '''
+    Takes a dictionary of full text of pdf files and returns all sentences, cleaned, in one list
+    Input:
+        pdf_conv (dct): dictionary of full text of pdf files
+    Output: 
+        Error files
+    Returns:
+        sentences (lst): all sentences, cleaned
+    '''
+    language='english'
+    abbrevs= None
+    min_num_words = 5
+    sentences = []
+    file_lst = []
+    for key in pdf_conv:
+        file_lst.append((key,pdf_conv[key]['Text']))
+    error_files={}
+    i = 0
+    folder_dct = {}
+    for file_id, text in tqdm(file_lst):
+        try:
+            preprocessed_text = preprocess_english_text(text)
+            sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
+            postprocessed_sents = format_sents_for_output(remove_short_sents(sents, min_num_words), file_id)
+            folder_dct[file_id] = postprocessed_sents
+        except Exception as e:
+            error_files[str(file_id)]= str(e)
+        i += 1
+    print(f'Number of error files: {len(error_files)}')
+    return folder_dct
+
 def get_clean_text_sents(pdf_conv):
     '''
     Takes a dictionary of full text of pdf files and returns all sentences, cleaned, in one list
@@ -428,7 +470,9 @@ if __name__ == '__main__':
     #input_path= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/pdf_texts.json"
     input_path= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/pdf_annots.json"
 
-    ES_TOKENIZER = nltk.data.load("tokenizers/punkt/spanish.pickle")
+    #ES_TOKENIZER = nltk.data.load("tokenizers/punkt/spanish.pickle")
+    ES_TOKENIZER = []
+    EN_TOKENIZER = nltk.data.load("tokenizers/punkt/english.pickle")
     with open(input_path,"r", encoding="utf-8") as f:
         pdf_texts = json.load(f)
     
