@@ -146,7 +146,6 @@ def get_clean_text_dct(pdf_conv, tokenizer):
     language='english'
     abbrevs= None
     min_num_words = 5
-    sentences = []
     file_lst = []
     for key in pdf_conv:
         file_lst.append((key,pdf_conv[key]['Text']))
