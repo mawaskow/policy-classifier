@@ -69,28 +69,18 @@ def main():
 
     pdf_dict = scrp_itm_to_fulltxt(itm_json)
 
-    #sent_dct = get_clean_text_dct(pdf_dict, EN_TOKENIZER)
-
     with open(OUTPUT_PTH+"/scraped_pdfs.json", 'w', encoding="utf-8") as outfile:
         json.dump(pdf_dict, outfile, ensure_ascii=False, indent=4)
-    print(f"Total time: {time.time()-start}")
+    
+    et = time.time()-start
+    print("Time elapsed total:", et//60, "min and", round(et%60), "sec")
+
 
 if __name__ == '__main__':
     OUTPUT_PTH = "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs"
     INPUT_PTH= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs/govie.json"
     INPUT_DIR= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs/full"
-
-    EN_TOKENIZER = nltk.data.load("tokenizers/punkt/english.pickle")
-    '''
-    with open(input_path,"r", encoding="utf-8") as f:
-        pdf_texts = json.load(f)
-    '''
+    #
     main()
 
-    '''
-    with open(os.path.join(output_path, 'annot_sents.json'), 'w', encoding="utf-8") as outfile:
-        json.dump(sentences, outfile, ensure_ascii=False, indent=4)
-    with open(os.path.join(output_path, 'annot_labels.json'), 'w', encoding="utf-8") as outfile:
-        json.dump(labels, outfile, ensure_ascii=False, indent=4)
-    '''
    
