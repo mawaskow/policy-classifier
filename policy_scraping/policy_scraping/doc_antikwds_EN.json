@@ -15,12 +15,10 @@
     "annex",
     "list",
     "summary",
-    "statement",
     "handbook",
     "booklet",
     "appropriate",
     "sea er of",
-    "report",
     "press release",
     "appropriate assessment determination",
     "meeting",
@@ -28,5 +26,7 @@
     "needs assessment",
     "swot analysis",
     "overview",
-    "communication"
+    "communication",
+    "statement",
+    "report"
 ]

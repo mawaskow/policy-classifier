@@ -24,8 +24,6 @@
     "biodiversity",
     "ecosystem",
     "ecosystems",
-    "service",
-    "services",
     "wetland",
     "wetlands",
     "bog",
@@ -46,5 +44,7 @@
     "drained",
     "drainage",
     "ecosystem-service",
-    "ecosystem-services"
+    "ecosystem-services",
+    "service",
+    "services"
 ]

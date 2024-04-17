@@ -5,13 +5,18 @@
 
 from scrapy.item import Item, Field
 
+#add location
+#add governance level
+#add search keyword that retrieved it?
 
 class IrishGovPolicy(Item):
-	title = Field()
-	link = Field()
+	hash_name = Field()
+	doc_title = Field()
+	pg_title = Field()
+	pg_link = Field()
+	file_urls = Field()
 	publication_date = Field()
 	department = Field()
 	type = Field()
-	file_urls = Field()
-	hash_name = Field()
+
 	pass
