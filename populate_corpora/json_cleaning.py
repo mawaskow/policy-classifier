@@ -133,6 +133,22 @@ def format_sents_for_output(sents, doc_id):
 
     return formatted_sents
 
+def format_sents_for_new_output(sents, doc_id):
+    formatted_sents = {}
+
+    for i, sent in enumerate(sents):
+        formatted_sents.update({f"{doc_id}_sent_{i}": {"text": sent, 
+                                                       "info": 
+                                                            {"label":[],
+                                                             "type":
+                                                             {
+                                                                 "action": [],
+                                                                 "class": []
+                                                             }}
+                                                       }})
+
+    return formatted_sents
+
 def get_clean_text_dct(pdf_conv, tokenizer):
     '''
     Takes a dictionary of full text of pdf files and returns all sentences, cleaned, in one list
@@ -157,6 +173,37 @@ def get_clean_text_dct(pdf_conv, tokenizer):
             preprocessed_text = preprocess_english_text(text)
             sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
             postprocessed_sents = format_sents_for_output(remove_short_sents(sents, min_num_words), file_id)
+            folder_dct[file_id] = postprocessed_sents
+        except Exception as e:
+            error_files[str(file_id)]= str(e)
+        i += 1
+    print(f'Number of error files: {len(error_files)}')
+    return folder_dct
+
+def get_clean_new_text_dct(pdf_conv, tokenizer):
+    '''
+    Takes a dictionary of full text of pdf files and returns all sentences, cleaned, in one list
+    Input:
+        pdf_conv (dct): dictionary of full text of pdf files
+    Output: 
+        Error files
+    Returns:
+        sentences (lst): all sentences, cleaned
+    '''
+    language='english'
+    abbrevs= None
+    min_num_words = 5
+    file_lst = []
+    for key in pdf_conv:
+        file_lst.append((key,pdf_conv[key]['text']))
+    error_files={}
+    i = 0
+    folder_dct = {}
+    for file_id, text in tqdm(file_lst):
+        try:
+            preprocessed_text = preprocess_english_text(text)
+            sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
+            postprocessed_sents = format_sents_for_new_output(remove_short_sents(sents, min_num_words), file_id)
             folder_dct[file_id] = postprocessed_sents
         except Exception as e:
             error_files[str(file_id)]= str(e)

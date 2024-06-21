@@ -15,7 +15,7 @@ from PyPDF2 import PdfReader
 import glob
 import time
 
-from json_cleaning import preprocess_english_text
+from json_cleaning import preprocess_english_text, get_clean_new_text_dct
 
 ##########################################################################################
 #   Get full text of PDFs
@@ -69,7 +69,11 @@ def main():
 
     pdf_dict = scrp_itm_to_fulltxt(itm_json)
 
-    with open(OUTPUT_PTH+"/scraped_pdfs.json", 'w', encoding="utf-8") as outfile:
+    readytolabel = get_clean_new_text_dct(pdf_dict, EN_TOKENIZER)
+    with open(OUTPUT_PTH+"/readytolabel_forest.json", 'w', encoding="utf-8") as outfile:
+        json.dump(readytolabel, outfile, ensure_ascii=False, indent=4)
+
+    with open(OUTPUT_PTH+"/scraped_pdfs_forest.json", 'w', encoding="utf-8") as outfile:
         json.dump(pdf_dict, outfile, ensure_ascii=False, indent=4)
     
     et = time.time()-start
@@ -78,9 +82,13 @@ def main():
 
 if __name__ == '__main__':
     OUTPUT_PTH = "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs"
-    INPUT_PTH= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs/govie.json"
-    INPUT_DIR= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs/full"
+    #INPUT_PTH= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs/govie.json"
+    ##INPUT_PTH= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs/scraped_pdfs.json"
+    #INPUT_DIR= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs/full"
+    INPUT_PTH= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/policy_scraping/outputs/goviefor.json"
+    INPUT_DIR= "C:/Users/Allie/Documents/GitHub/policy-classifier/policy_scraping/outputs/forestry/full"
     #
+    EN_TOKENIZER = nltk.data.load("tokenizers/punkt/english.pickle")
+    #with open(INPUT_PTH,"r", encoding="utf-8") as f:
+    #    itm_json = json.load(f)
     main()
-
-   
