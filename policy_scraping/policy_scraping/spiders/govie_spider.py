@@ -3,23 +3,23 @@ import json
 from policy_scraping.spiders import BaseSpider
 from policy_scraping.items import IrishGovPolicy
 import hashlib
+import os
 
 # Global Variables
 #
-base_dir = "C:\\Users\\allie\\Documents\\GitHub\\policy-classifier\\policy_scraping"
-search_keyword_file = "\\policy_scraping\\srch_kwds_EN.json"
-search_antikeyword_file = "\\policy_scraping\\srch_antikwds_EN.json"
-doc_antikeyword_file = "\\policy_scraping\\doc_antikwds_EN.json"
+#base_dir = "C:\\Users\\ales\\Documents\\GitHub\\policy-classifier\\policy_scraping"
+base_dir = os.getcwd()
+keyword_file = "\\keywords\\keywords_peat.json"
 output_dir = "\\outputs"
 #
 # Get files
 #
-with open(base_dir+search_keyword_file, "r", encoding="utf-8") as infile:
-    sr_kw_dct = json.load(infile)
-with open(base_dir+search_antikeyword_file, "r", encoding="utf-8") as infile:
-    sr_akw_dct = json.load(infile)
-with open(base_dir+doc_antikeyword_file, "r", encoding="utf-8") as infile:
-    doc_akw_dct = json.load(infile)
+with open(base_dir+keyword_file, "r", encoding="utf-8") as infile:
+    kwd_fl = json.load(infile)
+
+sr_kw_dct = kwd_fl["srch_en"]
+sr_akw_dct = kwd_fl["srch_anti_ie"]
+doc_akw_dct = kwd_fl["doc_anti_ie"]
 
 #
 # spideytime

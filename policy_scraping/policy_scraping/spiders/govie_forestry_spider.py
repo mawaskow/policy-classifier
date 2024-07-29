@@ -3,30 +3,30 @@ import json
 from policy_scraping.spiders import BaseSpider
 from policy_scraping.items import IrishGovPolicy
 import hashlib
+import os
 
 # Global Variables
 #
-base_dir = "C:\\Users\\allie\\Documents\\GitHub\\policy-classifier\\policy_scraping"
-search_keyword_file = "\\policy_scraping\\keywords_knowledge_domain_EN.json"
-search_antikeyword_file = "\\policy_scraping\\srch_antikwds_EN.json"
-#doc_antikeyword_file = "\\policy_scraping\\negative_keywords_knowledge_domain_EN.json"
-doc_antikeyword_file = "\\policy_scraping\\doc_antikwds_EN.json"
+base_dir = os.getcwd()
+kwds_forest = "\\keywords\\keywords_forestry.json"
+kwds_anti = "\\keywords\\keywords_peat.json"
 output_dir = "\\outputs\\forestry"
 #
 # Get files
 #
-with open(base_dir+search_keyword_file, "r", encoding="utf-8") as infile:
-    sr_kw_dct = list(json.load(infile))
-with open(base_dir+search_antikeyword_file, "r", encoding="utf-8") as infile:
-    sr_akw_dct = json.load(infile)
-with open(base_dir+doc_antikeyword_file, "r", encoding="utf-8") as infile:
-    #doc_akw_dct = list(json.load(infile))
-    doc_akw_dct = json.load(infile)
+with open(base_dir+kwds_forest, "r", encoding="utf-8") as infile:
+    forkwddoc = json.load(infile)
+with open(base_dir+kwds_anti, "r", encoding="utf-8") as infile:
+    allkwddoc = json.load(infile)
+    
+sr_kw_dct = forkwddoc["srch_en"]
+sr_akw_dct = allkwddoc["srch_anti_ie"]
+doc_akw_dct = allkwddoc["doc_anti_ie"]
 
 #
 # spideytime
 #
-class GovIESpider(BaseSpider):
+class GovIEForestSpider(BaseSpider):
     name = "goviefor"
     #scrapy crawl goviefor -O ../outputs/goviefor.json
 
