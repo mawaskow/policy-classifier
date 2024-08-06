@@ -1,4 +1,7 @@
 '''
+So, I think I accidentally got my IP banned from the site so idk how I'm going to do this now.
+
+###############
 The Windows implementation of asyncio can use two event loop implementations: SelectorEventLoop, default before Python 3.8, required when using Twisted. ProactorEventLoop, default since Python 3.8, cannot work with Twisted.
 
 So on Python 3.8+ the event loop class needs to be changed.
@@ -72,13 +75,15 @@ class MinRolPLSpider(BaseSpider):
 
     def start_requests(self):
             # GET request
-            yield scrapy.Request("https://httpbin.org/get", meta={"playwright": True})
+            yield scrapy.Request("https://multipeat.insight-centre.org", meta={"playwright": True})
             # POST request
+            '''
             yield scrapy.FormRequest(
                 url="https://httpbin.org/post",
                 formdata={"foo": "bar"},
                 meta={"playwright": True},
             )
+            '''
 
     def parse(self, response, **kwargs):
         # 'response' contains the page as seen by the browser
