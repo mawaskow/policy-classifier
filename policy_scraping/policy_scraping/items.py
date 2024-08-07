@@ -41,3 +41,15 @@ class NECPs(Item):
 	file_urls = Field()
 
 	pass
+
+class PLStrategie(Item):
+	hash_name = Field()
+	doc_title = Field()
+	pg_title = Field()
+	pg_link = Field()
+	file_urls = Field()
+	publication_date = Field()
+	department = Field()
+	type = Field()
+
+	pass

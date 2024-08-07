@@ -25,10 +25,9 @@ import os
 
 # Global Variables
 #
-#base_dir = "C:\\Users\\ales\\Documents\\GitHub\\policy-classifier\\policy_scraping"
 base_dir = os.getcwd()
 keyword_file = "\\keywords\\keywords_peat.json"
-output_dir = "\\outputs\\poland"
+output_dir = "\\outputs\\poland\\strategie"
 #
 # Get files
 #
@@ -36,8 +35,6 @@ with open(base_dir+keyword_file, "r", encoding="utf-8") as infile:
     kwd_fl = json.load(infile)
 
 sr_kw_dct = kwd_fl["srch_pl"]
-#sr_akw_dct = kwd_fl["srch_anti_ie"]
-#doc_akw_dct = kwd_fl["doc_anti_ie"]
 
 #
 # spideytime
@@ -74,8 +71,21 @@ class MinRolPLSpider(BaseSpider):
         settings.set("FILES_STORE", base_dir+output_dir, priority="spider")
 
     def start_requests(self):
+            HEADERS = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0",
+                "Accept": "application/json,text/plain,text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Accept-Encoding": "gzip, deflate",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Cache-Control": "max-age=0",
+                }
             # GET request
-            yield scrapy.Request("https://multipeat.insight-centre.org", meta={"playwright": True})
+            yield scrapy.Request("https://edziennik.minrol.gov.pl/search", self.parse, headers=HEADERS, meta={"playwright": True})
             # POST request
             '''
             yield scrapy.FormRequest(
@@ -86,5 +96,9 @@ class MinRolPLSpider(BaseSpider):
             '''
 
     def parse(self, response, **kwargs):
+        print("\n\n\nyeah dawg\n\n\n")
+        check = response.selector.xpath('//label[@class="control-label"]/text()').get()
+        print(check)
+        print(response.selector.xpath('//div'))
         # 'response' contains the page as seen by the browser
-        return {"url": response.url}
+        yield {"url": response.url}

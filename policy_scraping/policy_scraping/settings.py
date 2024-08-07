@@ -15,6 +15,8 @@ NEWSPIDER_MODULE = "policy_scraping.spiders"
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = "policy_scraping (+http://www.yourdomain.com)"
+#USER_AGENT = 'Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148'
+USER_AGENT = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:66.0) Gecko/20100101 Firefox/66.0'
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = True
