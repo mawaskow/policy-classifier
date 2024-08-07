@@ -35,12 +35,9 @@ class PLMinRolPolicy(Item):
 
 class NECPs(Item):
 	hash_name = Field()
-	doc_title = Field()
-	pg_title = Field()
-	pg_link = Field()
+	title = Field()
+	country = Field()
+	language = Field()
 	file_urls = Field()
-	publication_date = Field()
-	department = Field()
-	type = Field()
 
 	pass

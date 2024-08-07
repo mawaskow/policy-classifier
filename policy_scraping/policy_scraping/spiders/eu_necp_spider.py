@@ -7,7 +7,7 @@ import os
 # Global Variables
 #
 base_dir = os.getcwd()
-output_dir = "\\outputs"
+output_dir = "\\outputs\\necp"
 
 #
 # spideytime
@@ -36,7 +36,7 @@ class NECPSpider(BaseSpider):
         # select all NECP country items
         results_sel = response.selector.xpath('//div[@class="ecl-accordion"]//div[@class="ecl-accordion__item"]')
         for resp in results_sel:
-            cntry = resp.xpath('.//span[@class="ecl-accordion__toggle-title"]/text()').get()
+            cntry = resp.xpath('.//span[@class="ecl-accordion__toggle-title"]/text()').get().strip()
             dct[cntry] = {}
             getli = resp.xpath('.//div[@class="ecl"]/ul/li[not(contains(text(),"Draft") or contains(text(),"Commission"))]')
             for li in getli:
@@ -52,6 +52,9 @@ class NECPSpider(BaseSpider):
                         aes = li.xpath('./a[not(contains(text(),"Draft") or contains(text(),"Commission"))]')
                         for lnk in aes:
                             lnktxt = lnk.xpath('./text()').get()
+                            link = lnk.attrib['href']
+                            ltl = link.split('/')[-1]
+                            dct[cntry][ltl] = {}
                             if "Commission" in lnktxt:
                                 pass
                             elif "factsheet" in lnktxt:
@@ -59,6 +62,42 @@ class NECPSpider(BaseSpider):
                             elif "Staff Working Document" in lnktxt:
                                 pass
                             else:
-                                dct[cntry][lnktxt]= lnk.attrib['href']
-        print(dct)
-        yield dct
+                                dct[cntry][ltl][lnktxt]= link
+        # clean scraped info
+        for c in list(dct):
+            for t in list(dct[c]):
+                for l in list(dct[c][t]):
+                    if not dct[c][t][l]:
+                        dct[c][t].pop(l)
+                    elif dct[c][t][l][0:4] != "http":
+                        dct[c][t].pop(l)
+                if not dct[c][t]:
+                    dct[c].pop(t)
+            if not dct[c]:
+                dct.pop(c)
+        # clean/reduce dict
+        newdct = {}
+        for c in list(dct):
+            newdct[c] = {}
+            for t in list(dct[c]):
+                if t == "Final updated NECP":
+                    for l in list(dct[c][t]):
+                        newdct[c][t] = dct[c][t][l]
+                else:
+                    for l in list(dct[c][t]):
+                        newdct[c][l] =dct[c][t][l]
+        # put into items
+        for c in list(newdct):
+            for t in list(newdct[c]):
+                newdct[c][t]
+                doc_itm = NECPs()
+                doc_itm["country"] = c
+                doc_itm["title"] = "NECP"
+                doc_itm["language"] = t
+                #
+                path = newdct[c][t]
+                doc_itm["file_urls"] = [path]
+                hash = hashlib.sha1(path.encode()).hexdigest()
+                doc_itm["hash_name"] = hash
+
+                yield doc_itm
