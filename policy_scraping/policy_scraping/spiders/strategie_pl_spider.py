@@ -9,7 +9,12 @@ import os
 #
 base_dir = os.getcwd()
 output_dir = "\\outputs\\poland\\strategie"
+keyword_file = "\\keywords\\keywords_peat.json"
 
+with open(base_dir+keyword_file, "r", encoding="utf-8") as infile:
+    kwd_fl = json.load(infile)
+
+doc_akw_dct = kwd_fl["doc_anti_pl"]
 #
 # spideytime
 #
@@ -30,50 +35,31 @@ class PlStratSpider(BaseSpider):
         yield scrapy.Request(url, self.find_strats)
 
     def find_strats(self, response):
-        # gets links to departments from policies landing page
-        print("\n\n\nyeah dawg\n\n\n")
-        results_sel = response.selector.xpath('//div[contains(@class, "reboot-content")]//ul')
-        # points links to the publications tab of each department
-        dept_hrefs = [link.attrib["href"]+"latest/" for link in results_sel.xpath('.//a')]
-        search_lnks = []
-        # points links to search results filtered by type and keyword
-        for dept in dept_hrefs:
-            for key in sr_kw_dct:
-                search_lnks.append(dept+f"?q={key}&sort_by=published_date&type=policy_information&type=general_publications")
-        yield from response.follow_all(search_lnks, self.nav_dept_pg)
-    
-    def nav_dept_pg(self, response):
-        # get links to all results on current search page
-        results_sel = response.selector.xpath('//div[contains(@class, "reboot-content")]//ul')
-        pol_links = [link.attrib["href"] for link in results_sel.xpath('.//a')]
-        yield from response.follow_all(pol_links, self.parse)
-        # if there is another page, go to the next page so the above can be executed again
-        pg_count = response.selector.xpath('//div[@title="Pagination"]//div[contains(@class,"text-center")]/text()').get()
-        if int(pg_count.split("/")[0]) < int(pg_count.split("/")[1]):
-            page_next = response.selector.xpath('//div[@title="Pagination"]//a').attrib["href"]
-            yield response.follow(page_next, self.nav_dept_pg)
+        # gets links to strategies, plans, and programs (spp)
+        #print("\n\n\nyeah dawg 1\n\n\n")
+        results_sel = response.selector.xpath('//div[contains(@class,"menu-block")]/a')
+        # points links to the pages of each spp
+        spp_hrefs = [link.attrib["href"] for link in results_sel]
+        page_lnks = ["https://bip.mos.gov.pl/"+link for link in spp_hrefs]
+        yield from response.follow_all(page_lnks, self.parse)
 
     def parse(self, response):
-        # on the page of the result entry
-        results_sel = response.selector.xpath('//div[@id="main"]/div/div/div/div')
-        pg_title = results_sel.xpath(".//h1/text()").get()
-        # if the search antikeywords arent present
-        if not any(akwd in pg_title.lower() for akwd in sr_akw_dct):
-            # get all possible download docs on page
-            results_pdfs = response.selector.xpath('//a[text()="Download"]')
-            for result_pdf in results_pdfs:
-                doc_title = result_pdf.xpath('../../div/p[contains(@id,"download_title")]/text()').get()
-                if not any(akwd in doc_title.lower() for akwd in doc_akw_dct):
-                    doc_itm = IrishGovPolicy()
-                    doc_itm["pg_title"] = pg_title
-                    doc_itm["pg_link"] = response.request.url
-                    doc_itm["publication_date"] = results_sel.xpath(".//p[text()[contains(.,'Published')]]/time").attrib["datetime"]
-                    doc_itm["department"] = results_sel.xpath(".//p[text()[contains(.,'From')]]/a/text()").get()
-                    doc_itm["type"] = results_sel.xpath(".//span/text()").get().strip()
-                    #
-                    doc_itm["doc_title"] = doc_title
-                    path = result_pdf.xpath(".").attrib["href"]
-                    doc_itm["file_urls"] = [path]
-                    hash = hashlib.sha1(path.encode()).hexdigest()
-                    doc_itm["hash_name"] = hash
-                    yield doc_itm
+        #print("\n\n\nyeah dawg 2\n\n\n")
+        # on the page of the spp
+        pg_title = response.selector.xpath('//h1[@class="first-headline"]/text()').get()
+        # get all possible download docs on page
+        results_pdfs = response.selector.xpath('//div[contains(@class,"media-list")]/p[@class="media-heading"]/a')
+        for result_pdf in results_pdfs:
+            doc_title = result_pdf.xpath('./span/text()').get()
+            if not any(akwd in doc_title.lower() for akwd in doc_akw_dct):
+                doc_itm = PLStrategie()
+                doc_itm["pg_title"] = pg_title
+                doc_itm["pg_link"] = response.request.url
+                doc_itm["department"] = "Ministerstwo Klimatu i Środowiska"
+                #
+                doc_itm["doc_title"] = doc_title
+                path = "https://bip.mos.gov.pl/"+result_pdf.attrib["href"]
+                doc_itm["file_urls"] = [path]
+                hash = hashlib.sha1(path.encode()).hexdigest()
+                doc_itm["hash_name"] = hash
+                yield doc_itm

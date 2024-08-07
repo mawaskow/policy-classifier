@@ -168,5 +168,13 @@
             "węgla",
             "wrzosowiska",
             "wrzosowisko"
+        ],
+    "doc_anti_pl":
+        [
+            "zal.",
+            "zalacznik",
+            "uzasadnienie",
+            "informacja o przyjęciu planu",
+            "strategicznej oceny oddziaływania"
         ]
 }
