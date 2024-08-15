@@ -47,10 +47,14 @@ class XLSXSpider(BaseSpider):
         for url in urls:
             try:
                 yield scrapy.Request(url, self.parse)
-            except:
+            except Exception as e:
+                print(f"Failed {url} due to {e}.")
                 pass
 
     def parse(self, response):
         doc_itm = XLSXPolicy()
+        doc_itm["name"] = str(response.headers["Content-Type"] )            
         doc_itm["file_urls"] = [response.request.url]
+        hash = hashlib.sha1(response.request.url.encode()).hexdigest()
+        doc_itm["hash_name"] = hash
         yield doc_itm
