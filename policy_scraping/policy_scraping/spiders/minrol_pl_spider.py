@@ -19,7 +19,7 @@ import scrapy
 import json
 from policy_scraping.spiders import BaseSpider
 from policy_scraping.items import PLMinRolPolicy
-from playwright.async_api import async_playwright
+#from playwright.async_api import async_playwright
 import hashlib
 import os
 

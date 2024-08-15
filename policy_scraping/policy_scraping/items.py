@@ -51,3 +51,27 @@ class PLStrategie(Item):
 	department = Field()
 
 	pass
+
+class XLSXPolicy(Item):
+	name = Field()
+	engname = Field()
+	level = Field()
+	country = Field()
+	nuts1name = Field()
+	nuts2name = Field()
+	nuts3name = Field()
+	localauth = Field()
+	site = Field()
+	classif = Field()
+	dates = Field()
+	publisher = Field()
+	excerpt = Field()
+	engexc = Field()
+	abstract = Field()
+	engabst = Field()
+	lang = Field()
+	link = Field()
+	file_urls = Field()
+	hash_name = Field()
+
+	pass
