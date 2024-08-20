@@ -214,12 +214,14 @@ def pdfs_to_annot_dct(input_path):
 
 if __name__ == '__main__':
     #input_zip = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/onedrive_docs.zip"
-    output_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs"
-    input_dir= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/latam_pols"
-    #pdf_dict = pdfs_to_txt_dct(input_dir)
-
-    pdf_dict = pdfs_to_annot_dct(input_dir)
-    with open(os.path.join(output_path, 'pdf_annots.json'), 'w', encoding="utf-8") as outfile:
+    basedir = os.getcwd()
+    output_path = basedir+"\\outputs"
+    input_dir= basedir+"\\pdf_input\\IrishPoliciesMar24"
+    #input_dir= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/latam_pols"
+    
+    pdf_dict = pdfs_to_txt_dct(input_dir)
+    #pdf_dict = pdfs_to_annot_dct(input_dir)
+    with open(os.path.join(output_path, 'IrishPoliciesMar24.json'), 'w', encoding="utf-8") as outfile:
         json.dump(pdf_dict, outfile, ensure_ascii=False, indent=4)
 
 

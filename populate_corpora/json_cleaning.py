@@ -243,6 +243,31 @@ def get_clean_text_sents(pdf_conv):
     print(f'Number of error files: {len(error_files)}')
     return sentences
 
+def format_fulltxt_for_json(pdf_conv):
+    """
+    """
+    formatted_sents = []
+    language='english'
+    txts = []
+    file_lst = []
+    for key in pdf_conv:
+        file_lst.append((key,pdf_conv[key]['Text']))
+    error_files={}
+    i = 0
+    for file_id, text in tqdm(file_lst):
+        try:
+            preprocessed_text = preprocess_english_text(text)
+            txts.append(preprocessed_text)
+        except Exception as e:
+            error_files[str(file_id)]= str(e)
+        i += 1
+    print(f'Number of error files: {len(error_files)}')
+
+    for i, txt in enumerate(txts):
+        formatted_sents.append({"text": txt, "label": []})
+
+    return formatted_sents
+
 ##########################################################################################
 #   Clean annotations
 ##########################################################################################
@@ -512,10 +537,10 @@ def get_annot_sentlabs(pdf_annots):
     return sentences, labels
 
 if __name__ == '__main__':
-    output_path = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs"
     #input_path= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/pdf_texts.json"
-    input_path= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/pdf_annots.json"
-
+    basedir = os.getcwd()
+    output_path = basedir+"\\outputs"
+    input_path= basedir+"\\outputs\\IrishPoliciesMar24.json"
     #ES_TOKENIZER = nltk.data.load("tokenizers/punkt/spanish.pickle")
     ES_TOKENIZER = []
     EN_TOKENIZER = nltk.data.load("tokenizers/punkt/english.pickle")
@@ -525,17 +550,22 @@ if __name__ == '__main__':
     #######################################
     # To get clean text of pdf texts:
     ##################################
-    #sentences = get_clean_text_sents(pdf_texts)
-        
+    #sents = get_clean_text_sents(pdf_texts)
+    texts = format_fulltxt_for_json(pdf_texts)
+
+    with open(os.path.join(output_path, 'IrishPolsToLabel.json'), 'w', encoding="utf-8") as outfile:
+        json.dump(texts, outfile, ensure_ascii=False, indent=4)
+    ''''''
     #######################################################
     # To get clean text of pdf annots:
     ##################################
+    '''
     sentences, labels = get_annot_sentlabs(pdf_texts)
-
+    
     with open(os.path.join(output_path, 'annot_sents.json'), 'w', encoding="utf-8") as outfile:
         json.dump(sentences, outfile, ensure_ascii=False, indent=4)
     with open(os.path.join(output_path, 'annot_labels.json'), 'w', encoding="utf-8") as outfile:
         json.dump(labels, outfile, ensure_ascii=False, indent=4)
-    
+    '''
     ## need to fix the fact more than one label translates to the next highlight being 
    
