@@ -20,15 +20,15 @@ with open(base_dir+kwds_anti, "r", encoding="utf-8") as infile:
     allkwddoc = json.load(infile)
     
 sr_kw_dct = forkwddoc["srch_en"]
-sr_akw_dct = allkwddoc["srch_anti_ie"]
-doc_akw_dct = allkwddoc["doc_anti_ie"]
+sr_akw_dct = forkwddoc["srch_anti_en"]
+doc_akw_dct = sr_akw_dct
 
 #
 # spideytime
 #
-class GovIEForestSpider(BaseSpider):
-    name = "goviefor"
-    #scrapy crawl goviefor -O ../outputs/goviefor.json
+class NPWSForestSpider(BaseSpider):
+    name = "npwsfor"
+    #scrapy crawl npwsfor -O ../outputs/npwsfor.json
 
     @classmethod
     def update_settings(cls, settings):
@@ -60,11 +60,10 @@ class GovIEForestSpider(BaseSpider):
         pol_links = [link.attrib["href"] for link in results_sel.xpath('.//a')]
         yield from response.follow_all(pol_links, self.parse)
         # if there is another page, go to the next page so the above can be executed again
-        try:
-            page_next = response.selector.xpath('//a[@aria-label="next"]').attrib["href"]
+        pg_count = response.selector.xpath('//div[@title="Pagination"]//div[contains(@class,"text-center")]/text()').get()
+        if int(pg_count.split("/")[0]) < int(pg_count.split("/")[1]):
+            page_next = response.selector.xpath('//div[@title="Pagination"]//a').attrib["href"]
             yield response.follow(page_next, self.nav_dept_pg)
-        except:
-            pass
 
     def parse(self, response):
         # on the page of the result entry

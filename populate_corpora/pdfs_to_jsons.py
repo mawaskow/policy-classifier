@@ -24,26 +24,26 @@ import glob
 #   Get full text of PDFs
 ##########################################################################################
 
-def txt_to_dct(pdfReader):
+def txt_to_dct(pdfReader, pdf_meta):
     '''
     Input: 
         pdfReader (PyPDF2 object): Reader in use in loop
     Returns:
         doc_dict (dct): dictionary of single pdf with text
     '''
-    doc_dict = {i[1:]: str(j) for i, j in pdfReader.metadata.items()}
-    #doc_dict["Country"] = file.split("_")[-1][:-4]
-    doc_dict["Text"]=""
+    doc_dict = pdf_meta
+    doc_dict["text"]=""
     for page in range(len(pdfReader.pages)):
         page_text = pdfReader.pages[page].extract_text()  # extracting pdf text
         #page_text = text_cleaning(page_text)  # clean pdf text
-        doc_dict["Text"] += page_text  # concatenate pages' text
+        doc_dict["text"] += page_text  # concatenate pages' text
     return doc_dict
-    
-def pdfs_to_txt_dct(input_path):
+
+def pdfs_to_txt_meta_dct(input_path, meta_dct):
     '''
     Input:
         input_path (str): path directory or zip folder of pdfs
+        meta_dct
     Output:
         error messages
     Returns:
@@ -56,10 +56,11 @@ def pdfs_to_txt_dct(input_path):
         with ZipFile(input_path) as myzip:
             filenames = list(map(lambda x: x.filename, filter(lambda x: not x.is_dir(), myzip.infolist())))
             for file in tqdm(filenames):
+                key = os.path.splitext(os.path.basename(file))[0]
                 try:
                     pdfReader = PdfReader(BytesIO(myzip.read(file)))
                     # doc_dict holds the attributes of each pdf file
-                    doc_dict = txt_to_dct(pdfReader)
+                    doc_dict = txt_to_dct(pdfReader, meta_dct[key])
                     pdf_dict[os.path.splitext(os.path.basename(file))[0]] = doc_dict
                 except Exception as e:  # In case the file is corrupted
                     errors.append(f"Could not read {file} due to {e}")
@@ -68,162 +69,50 @@ def pdfs_to_txt_dct(input_path):
         for file in glob.glob(input_path, recursive=True):
             filenames.append(file)
         for file in tqdm(filenames):
+            key = os.path.splitext(os.path.basename(file))[0]
             try:
                 pdfReader = PdfReader(file)  # read file
                 # doc_dict holds the attributes of each pdf file
-                doc_dict = txt_to_dct(pdfReader)
-                pdf_dict[os.path.splitext(os.path.basename(file))[0]] = doc_dict
+                doc_dict = txt_to_dct(pdfReader, meta_dct[key])
+                pdf_dict[key] = doc_dict
             except Exception as e:  # In case the file is corrupted
                 errors.append(f"Could not read {file} due to {e}")
     print(errors)
     print(f"Successfully extracted {len(pdf_dict)}/{len(filenames)} pdfs")
     return pdf_dict
 
-##########################################################################################
-#   Get annotations from PDFs
-##########################################################################################
+def restructure_data_from_scraper(json_dct):
+    dct = {}
+    for item in json_dct:
+        dct[item['hash_name']] = {}
+        dct[item['hash_name']]['pg_title'] = item['pg_title']
+        dct[item['hash_name']]['pg_link'] = item['pg_link']
+        dct[item['hash_name']]['publication_date'] = item['publication_date']
+        dct[item['hash_name']]['department'] = item['department']
+        dct[item['hash_name']]['type'] = item['type']
+        dct[item['hash_name']]['doc_title'] = item['doc_title']
+        dct[item['hash_name']]['file_urls'] = item['file_urls']
+        
+    return dct
 
-def pdf_to_cmt_dct(file_path):
-    '''
-    This function extracts comments from a PDF file and returns them as a dct.
-    Parameters:
-    file_path (str): The path to the PDF file containing comments
-    Returns:
-    list: A list of comments extracted from the PDF file
-    '''
-    pdf_cmt_dct = {}
-    try:
-        # Open the PDF file
-        with open(file_path, 'rb') as pdf_file:
-            # Create a PDF reader object
-            pdf_reader = PdfReader(pdf_file)
-            # Get the number of pages in the PDF file
-            num_pages = len(pdf_reader.pages)
-            # Loop through each page in the PDF file
-            for page_num in range(num_pages):
-                # Get the page object
-                page = pdf_reader.pages[page_num]
-                i=0
-                # Get the annotations for the page
-                if "/Annots" in page:
-                    for annot in page["/Annots"]:
-                        try:
-                            comment = annot.get_object()["/Contents"]
-                            if i==0:
-                                pdf_cmt_dct[page_num] = {}
-                            pdf_cmt_dct[page_num][i] = comment
-                            i+=1
-                        except:
-                            pass
-    except Exception as e:
-        print(f"Error: {e}")
-    # Return the dct of comments
-    return pdf_cmt_dct
-
-def pdf_highlight_to_dct(file_path):
-    '''
-    # https://medium.com/@vinitvaibhav9/extracting-pdf-highlights-using-python-9512af43a6d
-    # there is a bit of noise: other text getting scraped in from the highlight coordinates and duplications of text.
-    # may want to look into other highlight/annotation extraction packages
-
-    This function extracts highlighted text from a PDF file and returns it in a dct.
-    Parameters:
-    file_path (str): The path to the PDF file containing highlighted text
-    Returns:
-    highlight_dict (dct): A dct of the highlighted text extracted from the PDF file
-    '''
-    highlt_dct = {}
-    doc = fitz.open(file_path)
-    # traverse pdf by page
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        # list of highlights for each page
-        highlights = []
-        annot = page.first_annot
-        i=0
-        while annot:
-            if annot.type[0] == 8:
-                all_coordinates = annot.vertices
-                if len(all_coordinates) == 4:
-                    highlight_coord = fitz.Quad(all_coordinates).rect
-                    highlights.append(highlight_coord)
-                else:
-                    all_coordinates = [all_coordinates[x:x+4] for x in range(0, len(all_coordinates), 4)]
-                    for j in range(0,len(all_coordinates)):
-                        coord = fitz.Quad(all_coordinates[j]).rect
-                        highlights.append(coord)
-                    all_words = page.get_text("words")
-            # List to store all the highlighted texts
-            highlight_text = []
-            for h in highlights:
-                sentence = [w[4] for w in all_words if fitz.Rect(w[0:4]).intersects(h)]
-                highlight_text.append(" ".join(sentence))
-            if highlight_text:
-                if i==0:
-                    highlt_dct[page_num]={}
-                #highlt_dct[page_num][i] = text_cleaning(" ".join(highlight_text))
-                highlt_dct[page_num][i] = " ".join(highlight_text)
-            i+=1
-            annot = annot.next
-    return highlt_dct
-
-### Combines above two fxns
-
-def pdfs_to_annot_dct(input_path):
-    '''
-    This function extracts highlighted text and comments from a PDF file, attempts to match them together, 
-    and returns them in a list.
-    Parameters:
-    file_path (str): The path to the directory of PDF files containing comments and highlighted text
-    Returns:
-    pdf_dct (dct): A dictionary of all the pdfs' connected annotations
-    '''
-    # can only handle normal folders right now
-    dir_path = input_path+"\\**\\*.*"
-    filenames = []
-    pdf_dct = {}
-    for file in glob.glob(dir_path, recursive=True):
-        filenames.append(file)
-    #
-    #for each file
-    for file in tqdm(filenames):
-        fname = file.split('\\')[-1][:-4]
-        print(f"Processing {fname}...")
-        pdf_dct[fname] = {}
-        # get comment annotation and highlighted text dictionaries
-        # first key is page number, then the number of each sentence/annotation
-        try:
-            cmts = pdf_to_cmt_dct(os.path.join(input_path, file))
-            hlts = pdf_highlight_to_dct(os.path.join(input_path, file))
-            for p in cmts.keys():
-                if p in hlts.keys():
-                    pdf_dct[fname][p]={}
-                    for i in cmts[p].keys():
-                        if i in hlts[p].keys():
-                            pdf_dct[fname][p][i] = {}
-                            pdf_dct[fname][p][i]["sentence"]= hlts[p][i]
-                            label = cmts[p][i]
-                            pdf_dct[fname][p][i]["label"] = label
-                        else:
-                            print(f"{fname} did not have same highlight count for page {p}")
-                else:
-                    print(f"{fname} did not have highlight for page {p}")
-        except Exception as e:
-            print(f"{fname} was not processed due to: {e}")
-    return pdf_dct
-
-if __name__ == '__main__':
-    #input_zip = "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/onedrive_docs.zip"
+def main():
     basedir = os.getcwd()
-    output_path = basedir+"\\outputs"
-    input_dir= basedir+"\\pdf_input\\IrishPoliciesMar24"
-    #input_dir= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/pdf_input/latam_pols"
+    output_path = basedir+"\\populate_corpora\\outputs"
+    input_dir= basedir+"\\policy_scraping\\policy_scraping\\outputs\\forestry\\full"
+    pdf_info_addr = basedir+"\\policy_scraping\\outputs\\goviefor.json"
     
-    pdf_dict = pdfs_to_txt_dct(input_dir)
-    #pdf_dict = pdfs_to_annot_dct(input_dir)
-    with open(os.path.join(output_path, 'IrishPoliciesMar24.json'), 'w', encoding="utf-8") as outfile:
+    with open(pdf_info_addr, "r", encoding="utf-8") as f:
+        pdf_info = json.load(f)
+    
+    pdf_info = restructure_data_from_scraper(pdf_info)
+
+    pdf_dict = pdfs_to_txt_meta_dct(input_dir, pdf_info)
+    
+    with open(os.path.join(output_path, 'ForestryPolicies.json'), 'w', encoding="utf-8") as outfile:
         json.dump(pdf_dict, outfile, ensure_ascii=False, indent=4)
 
+if __name__ == '__main__':
+    main()
 
     '''
     # cmd line example

@@ -133,54 +133,17 @@ def format_sents_for_output(sents, doc_id):
 
     return formatted_sents
 
-def format_sents_for_new_output(sents, doc_id):
-    formatted_sents = {}
+def format_sents_for_doccano(sents):
+    """
+    """
+    formatted_sents = []
 
-    for i, sent in enumerate(sents):
-        formatted_sents.update({f"{doc_id}_sent_{i}": {"text": sent, 
-                                                       "info": 
-                                                            {"label":[],
-                                                             "type":
-                                                             {
-                                                                 "action": [],
-                                                                 "class": []
-                                                             }}
-                                                       }})
+    for sent in sents:
+        formatted_sents.append({"text": sent, "label": []})
 
     return formatted_sents
 
 def get_clean_text_dct(pdf_conv, tokenizer):
-    '''
-    Takes a dictionary of full text of pdf files and returns all sentences, cleaned, in one list
-    Input:
-        pdf_conv (dct): dictionary of full text of pdf files
-    Output: 
-        Error files
-    Returns:
-        sentences (lst): all sentences, cleaned
-    '''
-    language='english'
-    abbrevs= None
-    min_num_words = 5
-    file_lst = []
-    for key in pdf_conv:
-        file_lst.append((key,pdf_conv[key]['Text']))
-    error_files={}
-    i = 0
-    folder_dct = {}
-    for file_id, text in tqdm(file_lst):
-        try:
-            preprocessed_text = preprocess_english_text(text)
-            sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
-            postprocessed_sents = format_sents_for_output(remove_short_sents(sents, min_num_words), file_id)
-            folder_dct[file_id] = postprocessed_sents
-        except Exception as e:
-            error_files[str(file_id)]= str(e)
-        i += 1
-    print(f'Number of error files: {len(error_files)}')
-    return folder_dct
-
-def get_clean_new_text_dct(pdf_conv, tokenizer):
     '''
     Takes a dictionary of full text of pdf files and returns all sentences, cleaned, in one list
     Input:
@@ -203,15 +166,16 @@ def get_clean_new_text_dct(pdf_conv, tokenizer):
         try:
             preprocessed_text = preprocess_english_text(text)
             sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
-            postprocessed_sents = format_sents_for_new_output(remove_short_sents(sents, min_num_words), file_id)
-            folder_dct[file_id] = postprocessed_sents
+            postprocessed_sents = format_sents_for_output(remove_short_sents(sents, min_num_words), file_id)
+            #folder_dct[file_id] = postprocessed_sents
+            folder_dct.update(postprocessed_sents)
         except Exception as e:
             error_files[str(file_id)]= str(e)
         i += 1
     print(f'Number of error files: {len(error_files)}')
     return folder_dct
 
-def get_clean_text_sents(pdf_conv):
+def get_clean_filtered_for_doccano(pdf_conv, tokenizer):
     '''
     Takes a dictionary of full text of pdf files and returns all sentences, cleaned, in one list
     Input:
@@ -221,19 +185,51 @@ def get_clean_text_sents(pdf_conv):
     Returns:
         sentences (lst): all sentences, cleaned
     '''
-    language='spanish'
+    language='english'
     abbrevs= None
-    tokenizer = ES_TOKENIZER
+    min_num_words = 5
+    file_lst = []
+    for key in pdf_conv:
+        file_lst.append((key,pdf_conv[key]['text']))
+    error_files={}
+    i = 0
+    folder_lst = []
+    for file_id, text in tqdm(file_lst):
+        try:
+            preprocessed_text = preprocess_english_text(text)
+            sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
+            #filter_sents_for_relevance()
+            postprocessed_sents = format_sents_for_doccano(remove_short_sents(sents, min_num_words))
+            #folder_dct[file_id] = postprocessed_sents
+            folder_lst.extend(postprocessed_sents)
+        except Exception as e:
+            error_files[str(file_id)]= str(e)
+        i += 1
+    print(f'Number of error files: {len(error_files)}')
+    #print(error_files)
+    return folder_lst
+
+def get_clean_text_sents(pdf_conv, tokenizer):
+    '''
+    Takes a dictionary of full text of pdf files and returns all sentences, cleaned, in one list
+    Input:
+        pdf_conv (dct): dictionary of full text of pdf files
+    Output: 
+        Error files
+    Returns:
+        sentences (lst): all sentences, cleaned
+    '''
+    abbrevs= None
     min_num_words = 5
     sentences = []
     file_lst = []
     for key in pdf_conv:
-        file_lst.append((key,pdf_conv[key]['Text']))
+        file_lst.append((key,pdf_conv[key]['text']))
     error_files={}
     i = 0
     for file_id, text in tqdm(file_lst):
         try:
-            preprocessed_text = preprocess_spanish_text(text)
+            preprocessed_text = preprocess_english_text(text)
             sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
             postprocessed_sents = remove_short_sents(sents, min_num_words)
             sentences+=postprocessed_sents
@@ -251,7 +247,7 @@ def format_fulltxt_for_json(pdf_conv):
     txts = []
     file_lst = []
     for key in pdf_conv:
-        file_lst.append((key,pdf_conv[key]['Text']))
+        file_lst.append((key,pdf_conv[key]['text']))
     error_files={}
     i = 0
     for file_id, text in tqdm(file_lst):
@@ -268,282 +264,34 @@ def format_fulltxt_for_json(pdf_conv):
 
     return formatted_sents
 
-##########################################################################################
-#   Clean annotations
-##########################################################################################
-# first clean labels
-#################################################
-# initialize incentive classification lists and dictionaries
-ann_cls_lst = [
-    "Direct payment",
-    "Credit",
-    "Tax deduction",
-    "Technical assistance",
-    "Supplies",
-    "Fine"
-]
+def prelabeling(dcc_lst):
+    flt_lst =[]
+    for entry in dcc_lst:
+        if any(kwd in entry['text'].lower() for kwd in KWDS):
+            flt_ntr = {}
+            flt_ntr['text'] = entry['text']
+            flt_ntr["label"] = ["non-incentive"]
+            if any(kwd in entry['text'].lower() for kwd in ["grant", "pay", "cash"]):
+                flt_ntr['label'] = ["mention-direct payment"]
+            if any(kwd in entry['text'].lower() for kwd in ["loan","lend", "credit", "insur", "guarantee","debt"]):
+                flt_ntr['label'] = ["mention-credit"]
+            if any(kwd in entry['text'].lower() for kwd in ["tax", "liabilit", "deduct"]):
+                flt_ntr['label'] = ["mention-tax deduction"]
+            if any(kwd in entry['text'].lower() for kwd in ["train", "assist","expert"]):
+                flt_ntr['label'] = ["mention-technical assistance"]
+            if any(kwd in entry['text'].lower() for kwd in ["supplies", "equip", "infrastructure"]):
+                flt_ntr['label'] = ["mention-supplies"]
+            if any(kwd in entry['text'].lower() for kwd in ["penal", "fine"]):
+                flt_ntr['label'] = ["mention-fine"]
+            flt_lst.append(flt_ntr)
+    return flt_lst
 
-ann_cls_dct = {
-    "direct": "Direct payment",
-    "direct payment": "Direct payment",
-    "credit": "Credit",
-    "tax deduction": "Tax deduction",
-    "technical assistance": "Technical assistance",
-    "supplies": "Supplies",
-    "fine": "Fine",
-    "techical assistance": "Technical assistance",
-    "tax credit": "Tax deduction",
-    "pes": "Direct payment",
-    "technical support": "Technical assistance",
-    "direct payments": "Direct payment",
-    "fines":"Fine"
-}
-
-def merge_label(input_string):
-    '''
-    input: label (str)
-    returns: cleaned label (list)
-    Goes through the raw label and converts it to
-    elements a list if it can be converted into
-    a known label
-    '''
-    label_lst = []
-    try:
-        input_string = input_string.split(",")
-        for i in input_string:
-            i = i.strip().lower()
-            if i in ann_cls_dct.keys():
-                label_lst.append(ann_cls_dct[i])
-            elif i[:15] in ann_cls_dct.keys():
-                label_lst.append(ann_cls_dct[i[:15]])
-            else:
-                i=i.replace("(", "")
-                i=i.replace(")","")
-                i=i.split(" ")
-                for j in i:
-                    if j=='pes':
-                        label_lst.append("Direct payment")
-        return label_lst
-    except Exception as e:
-        return [e]
-
-def label_show_str(input_path):
-    '''
-    input: file path (str) to json
-    output: prints foreign label,
-            prints #foreign labels out of #labels
-    Shows the labels in a file that dont match the known labels
-    when the file labels are strings (not list elements)
-    '''
-    with open(input_path, "r", encoding="utf-8") as f:
-        pdf_ann = json.load(f)
-    i=0
-    j=0
-    #traverse by filename
-    for fn in pdf_ann.keys():
-        # then pagenumber
-        for pn in pdf_ann[fn].keys():
-            #then sentence in page
-            for sn in pdf_ann[fn][pn].keys():
-                j+=1
-                label = pdf_ann[fn][pn][sn]['label']
-                if label not in ann_cls_lst:
-                    print(label)
-                    i=i+1
-    print(i, j)
-
-def label_show_lst(ann_dct):
-    '''
-    #####################
-    come back to this one and make it adaptable for any label?
-    #####################
-    input: file path (str) to json
-    output: prints foreign label,
-            prints #foreign labels out of #labels
-    Shows the labels in a file that arent known labels
-    when the file labels are list elements
-    '''
-    i=0
-    j=0
-    #traverse by filename
-    for fn in ann_dct.keys():
-        # then pagenumber
-        for pn in ann_dct[fn].keys():
-            #then sentence in page
-            for sn in ann_dct[fn][pn].keys():
-                j+=1
-                label = ann_dct[fn][pn][sn]['label']
-                if label!=[]:
-                    print(label)
-                for lb in range(len(label)):
-                    if label[lb] not in ann_cls_lst:
-                        print(label[lb])
-                        i=i+1
-    print(f"Errors in {i}/{j} labels")
-
-def clean_labels(annot_dct):
-    '''
-    inputs: annotation dct
-    output: file with clean/uniform labels
-    Takes json file with raw annotations and converts them into lists of uniform labels (in new file)
-    '''
-    #label_show_str(input)
-    '''
-    # testing labels
-    input_strings = ["Direct payment (PES)", "Forest, Agriculture (Crop)", "Direct payment (PES), Credit,",
-                     "Credit, Technical assistance", " a policy in itself but a very important criticism of the inadequacies of previous financial incentive programs, namely PRODEFOR, PROCYMAF, PRODEPLAN. This argues that the programs lack long-term security due to dependency on budgets and lack of private investment. It also states that the previous programs were inflexible to different regional situations.",
-                     "Fines", "Direct payments (PES), Technical assistance", "Other (Environmental education)",
-                     "Unknown, Technical assistance", "PES, credit, technical assistance"]
-    for i in input_strings:
-        print(i, "BECOMES", merge_label(i))
-    '''
-    for pdf in tqdm(annot_dct.keys()):
-        for pg in annot_dct[pdf].keys():
-            for snt in annot_dct[pdf][pg].keys():
-                # label cleaning
-                label = text_cleaning(annot_dct[pdf][pg][snt]["label"]).split("\n")[0]
-                label = label.split("\r")[0][3:]
-                annot_dct[pdf][pg][snt]["label"] = merge_label(label)
-    #label_show_lst(annot_dct)
-    return annot_dct
-
-def remove_empty_labels(empties):
-    for pdf in list(empties):
-        for pg in list(empties[pdf]):
-            for snt in list(empties[pdf][pg]):
-                if len(empties[pdf][pg][snt]["label"]) == 0:
-                    empties[pdf][pg].pop(snt)
-            if len(empties[pdf][pg].keys()) == 0:
-                empties[pdf].pop(pg)
-        if len(empties[pdf].keys()) == 0:
-            empties.pop(pdf)
-    return empties
-
-##################################################
-# next clean highlights
-###################################################
-
-def sentcheck_dups(pdf_ann):
-    '''
-    input: checks for duplicate texts in highlights
-    output: 
-    '''
-    #traverse by filename
-    for fn in list(pdf_ann):
-        # then pagenumber
-        for pn in list(pdf_ann[fn]):
-            if len(list(pdf_ann[fn][pn]))>1:
-                # create a new dictionary for the page
-                new_pg = {}
-                # traverse sentence keys by iterable
-                for si in range(len(list(pdf_ann[fn][pn]))):
-                    # if first sentence, add to new page (sentence and label)
-                    if si== 0:
-                        sn = list(pdf_ann[fn][pn])[si]
-                        new_pg[sn] = pdf_ann[fn][pn][sn]
-                    else:
-                        # get previous and current sentence keys
-                        pk = list(pdf_ann[fn][pn])[si-1]
-                        ck = list(pdf_ann[fn][pn])[si]
-                        # check if previous sentence is contained in present sentence
-                        if pdf_ann[fn][pn][pk]["sentence"] in pdf_ann[fn][pn][ck]["sentence"]:
-                            # if so, replace sentence and add label back
-                            new_pg[ck] = {}
-                            new_pg[ck]["sentence"] = pdf_ann[fn][pn][ck]["sentence"].replace(pdf_ann[fn][pn][pk]["sentence"], "")
-                            new_pg[ck]["label"] = pdf_ann[fn][pn][ck]["label"]
-                        else:
-                            new_pg[ck] = pdf_ann[fn][pn][ck]
-                pdf_ann[fn][pn] = new_pg
-    return pdf_ann
-
-def keep_paragraph(hlt_dct):
-    '''
-    keeps highlights in their paragraph shapes but cleans them
-    '''
-    abbrevs= None
-    tokenizer = ES_TOKENIZER
-    min_num_words = 5
-    for pdf in tqdm(list(hlt_dct)):
-        for pn in list(hlt_dct[pdf]):
-            for sn in list(hlt_dct[pdf][pn]):
-                sent = text_cleaning(hlt_dct[pdf][pn][sn]["sentence"])
-                preprocessed_text = preprocess_spanish_text(sent)
-                sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
-                postprocessed_sents = remove_short_sents(sents, min_num_words)
-                hlt_dct[pdf][pn][sn]["sentence"] = " ".join(postprocessed_sents)
-    return hlt_dct
-
-def paragraph_to_sents(hlt_dct):
-    '''
-    cleans highlights, splits them into sentences, then attaches the same label to each subsentence
-    '''
-    abbrevs= None
-    tokenizer = ES_TOKENIZER
-    min_num_words = 5
-    for pdf in tqdm(list(hlt_dct)):
-        for pn in list(hlt_dct[pdf]):
-            new_page = {}
-            for sn in list(hlt_dct[pdf][pn]):
-                sent = text_cleaning(hlt_dct[pdf][pn][sn]["sentence"])
-                preprocessed_text = preprocess_spanish_text(sent)
-                sents = get_nltk_sents(preprocessed_text, tokenizer, abbrevs)
-                postprocessed_sents = remove_short_sents(sents, min_num_words)
-                for i in range(len(postprocessed_sents)):
-                    new_page[i] = {
-                        "sentence": postprocessed_sents[i],
-                        "label": hlt_dct[pdf][pn][sn]["label"]
-                    }
-            hlt_dct[pdf][pn]=new_page
-    return hlt_dct
-
-def remove_empty_hlts(empties):
-    for pdf in list(empties):
-        for pg in list(empties[pdf]):
-            for snt in list(empties[pdf][pg]):
-                if len(empties[pdf][pg][snt]["sentence"]) == 0:
-                    empties[pdf][pg].pop(snt)
-            if len(empties[pdf][pg].keys()) == 0:
-                empties[pdf].pop(pg)
-        if len(empties[pdf].keys()) == 0:
-            empties.pop(pdf)
-    return empties
-
-###################################################
-# Now convert current dictionary structure into sentence-label structure
-###################################################
-
-def hlt_parse(hlts):
-    sentences=[]
-    labels=[]
-    for pdf in list(hlts):
-        for pn in list(hlts[pdf]):
-            for sn in list(hlts[pdf][pn]):
-                sentences.append(hlts[pdf][pn][sn]["sentence"])
-                labels.append(hlts[pdf][pn][sn]["label"])
-    return sentences, labels
-
-###################################################
-# get sentence, label lists from pdf annots
-###################################################
-def get_annot_sentlabs(pdf_annots):
-    pdf_annots = clean_labels(pdf_annots)
-    pdf_annots= remove_empty_labels(pdf_annots)
-    pdf_annots = sentcheck_dups(pdf_annots)
-    pdf_annots = keep_paragraph(pdf_annots)
-    #pdf_annots = paragraph_to_sents(pdf_annots)
-    pdf_annots = remove_empty_hlts(pdf_annots)
-    sentences, labels = hlt_parse(pdf_annots)
-    print(f'{len(sentences)} sent / {len(labels)} labels')
-    return sentences, labels
-
-if __name__ == '__main__':
+def main():
     #input_path= "C:/Users/Allie/Documents/GitHub/policy-classifier/populate_corpora/outputs/pdf_texts.json"
     basedir = os.getcwd()
-    output_path = basedir+"\\outputs"
-    input_path= basedir+"\\outputs\\IrishPoliciesMar24.json"
-    #ES_TOKENIZER = nltk.data.load("tokenizers/punkt/spanish.pickle")
-    ES_TOKENIZER = []
-    EN_TOKENIZER = nltk.data.load("tokenizers/punkt/english.pickle")
+    output_path = basedir+"\\populate_corpora\\outputs\\"
+    input_path= basedir+"\\populate_corpora\\outputs\\ForestryPolicies.json"
+    
     with open(input_path,"r", encoding="utf-8") as f:
         pdf_texts = json.load(f)
     
@@ -551,10 +299,25 @@ if __name__ == '__main__':
     # To get clean text of pdf texts:
     ##################################
     #sents = get_clean_text_sents(pdf_texts)
-    texts = format_fulltxt_for_json(pdf_texts)
+    #texts = format_fulltxt_for_json(pdf_texts)
+    output= get_clean_filtered_for_doccano(pdf_texts, EN_TOKENIZER)
+    output = prelabeling(output)
+    print(len(output))
 
-    with open(os.path.join(output_path, 'IrishPolsToLabel.json'), 'w', encoding="utf-8") as outfile:
-        json.dump(texts, outfile, ensure_ascii=False, indent=4)
+    with open(os.path.join(output_path, 'ForestLablTmp_prelab.json'), 'w', encoding="utf-8") as outfile:
+        json.dump(output, outfile, ensure_ascii=False, indent=4)
+
+
+if __name__ == '__main__':
+    #ES_TOKENIZER = nltk.data.load("tokenizers/punkt/spanish.pickle")
+    ES_TOKENIZER = []
+    EN_TOKENIZER = nltk.data.load("tokenizers/punkt/english.pickle")
+
+    KWDS = ["forest", "incentive", "instrument", "tree", "scheme", "grant", "pay", "loan", "credit", "subsid", 
+            "cash", "restor", "tax", "train", "assist", "support", "penal", "compensat", "expert", "fine"]
+
+    main()
+
     ''''''
     #######################################################
     # To get clean text of pdf annots:
