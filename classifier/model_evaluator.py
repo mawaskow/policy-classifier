@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import itertools
 from itertools import cycle
-import wandb
 
 import sys
 
