@@ -139,75 +139,6 @@ def gen_mc_sentlab(sents, labels, sanity_check=False):
             print(f'[{n}] {mc_labels[n]}: {mc_sents[n]}')
     return mc_sents, mc_labels
 
-def bn_generate_embeddings(incentives, nonincentives, cuda=False, r_state=9, model_name= "paraphrase-xlm-r-multilingual-v1", sanity_check=False):
-    '''
-    Takes incentive and nonincentive sentences, creates corresponding 
-    label lists, and merges them accordingly. Splits data into trainig
-    and testing sets, initializes a sentence transformer model,
-    creates embeddings of the training and test sentences,
-    returns encoded training sents, test sents, and test labels
-    '''
-    incent_lbls = ["incentive"]*len(incentives)
-    noninc_lbls = ["non-incentive"]*len(nonincentives)
-    sentences = incentives+nonincentives
-    labels = incent_lbls+noninc_lbls
-    train_sents, test_sents, train_labels, test_labels = train_test_split(sentences,labels, test_size=0.2, random_state=r_state)
-    #
-    print("Loading model.")
-    if cuda:
-        bin_model = SentenceTransformer(model_name, device="cuda") # or .cuda()
-    else:
-        bin_model = SentenceTransformer(model_name)
-    print("Encoding training sentences.")
-    train_embs = encode_all_sents(train_sents, bin_model)
-    print("Encoding test sentences.")
-    test_embs = encode_all_sents(test_sents, bin_model)
-    if sanity_check:
-        n = random.randint(0, len(train_sents))
-        print(f'[{n}]: {train_embs[n]}')
-        t = random.randint(0, len(test_sents))
-        print(f'{t}: {test_embs[t]}')
-    return train_embs, test_embs, train_labels, test_labels
-
-def mc_generate_embeddings(sentences, labels, cuda=False, r_state=9, model_name= "paraphrase-xlm-r-multilingual-v1", sanity_check=False):
-    '''
-    Takes sentences and labels. Splits data into trainig
-    and testing sets, initializes a sentence transformer model,
-    creates embeddings of the training and test sentences,
-    returns encoded training sents, test sents, and test labels
-    '''
-    train_sents, test_sents, train_labels, test_labels = train_test_split(sentences,labels, test_size=0.2, random_state=r_state)
-    label_names = list(set(train_labels))
-    if sanity_check:
-        print("Label names:", label_names)
-        n = random.randint(0, len(train_labels))
-        print(f"[{n}] {train_labels[n]}: {train_sents[n]}")
-        t = random.randint(0, len(test_labels))
-        print(f"[{t}] {test_labels[t]}: {test_sents[t]}")
-    # load model
-    print("Loading model.")
-    if cuda:
-        bin_model = SentenceTransformer(model_name, device="cuda") # or .cuda()
-    else:
-        bin_model = SentenceTransformer(model_name)
-    print("Encoding training sentences.")
-    train_embs = encode_all_sents(train_sents, bin_model)
-    print("Encoding test sentences.")
-    test_embs = encode_all_sents(test_sents, bin_model)
-    if sanity_check:
-        n = random.randint(0, len(train_sents))
-        print(f'[{n}]: {train_embs[n]}')
-        n = random.randint(0, len(test_sents))
-        print(f'{n}: {test_embs[n]}')
-    return train_embs, test_embs, train_labels, test_labels
-
-def classify_rf(train_embs, train_labels, test_embs, r_state= 9):
-    print("Evaluating.")
-    clf = RandomForestClassifier(n_estimators=100, max_depth=3, random_state=r_state)
-    clf.fit(np.vstack(train_embs), train_labels)
-    clf_preds = [clf.predict(sent_emb)[0] for sent_emb in test_embs]
-    return clf_preds
-
 def classify_svm(train_embs, train_labels, test_embs, r_state= 9):
     print("Evaluating.")
     clf = svm.SVC(gamma=0.001, C=100., random_state=r_state)
@@ -215,47 +146,322 @@ def classify_svm(train_embs, train_labels, test_embs, r_state= 9):
     clf_preds = [clf.predict(sent_emb)[0] for sent_emb in test_embs]
     return clf_preds
 
-def main(cuda = False, scheck = False):
-    with open(input_dir+"/19Jan25_firstdatarev.json","r", encoding="utf-8") as f:
-        dcno_json = json.load(f)
-    with open(input_dir+"/27Jan25_query_checked.json","r", encoding="utf-8") as f:
-        qry_json = json.load(f)
-    sents1, labels1 = dcno_to_sentlab(dcno_json, sanity_check=scheck)
-    sents2, labels2 = dcno_to_sentlab(qry_json, sanity_check=scheck)
-    # merge original and augmented datasets
-    sents2.extend(sents1)
-    labels2.extend(labels1)
-    all_sents, all_labs = remove_duplicates(group_duplicates(sents2,labels2,thresh=90))
-    inc_sents, noninc_sents = gen_bn_lists(all_sents, all_labs, sanity_check=scheck)
-    mc_sents, mc_labels = gen_mc_sentlab(all_sents, all_labs, sanity_check=scheck)
+def bn_classification(incentives, nonincentives, cuda=False, r_state=9, exps=1, model_name= "paraphrase-xlm-r-multilingual-v1", sanity_check=False):
+    '''
+    Takes incentive and nonincentive sentences, creates corresponding 
+    label lists, and merges them accordingly. Splits data into trainig
+    and testing sets, initializes a sentence transformer model,
+    creates embeddings of the training and test sentences,
+    returns encoded training sents, test sents, and test labels
+    '''
+    raps = {}
+    incent_lbls = ["incentive"]*len(incentives)
+    noninc_lbls = ["non-incentive"]*len(nonincentives)
+    sentences = incentives+nonincentives
+    labels = incent_lbls+noninc_lbls
     #
+    dev = 'cuda' if cuda else None
+    print(f"Loading model {model_name}.")
+    try:
+        bin_model = SentenceTransformer(model_name, device=dev) 
+    except:
+        bin_model = SentenceTransformer(model_name, device=dev, trust_remote_code=True)
+    for exp in range(exps):
+        train_sents, test_sents, train_labels, test_labels = train_test_split(sentences,labels, test_size=0.2, random_state=exp)
+        print("Encoding training sentences.")
+        train_embs = encode_all_sents(train_sents, bin_model)
+        print("Encoding test sentences.")
+        test_embs = encode_all_sents(test_sents, bin_model)
+        clf_prds = classify_svm(train_embs, train_labels, test_embs, r_state= r_state)
+        raps[exp] = {'real': test_labels, 'pred': clf_prds}
+    return raps
+
+def mc_classification(sentences, labels, cuda=False, r_state=9, exps=1, model_name= "paraphrase-xlm-r-multilingual-v1", sanity_check=False):
+    '''
+    Takes sentences and labels. Splits data into trainig
+    and testing sets, initializes a sentence transformer model,
+    creates embeddings of the training and test sentences,
+    returns encoded training sents, test sents, and test labels
+    '''
+    raps = {}
+    # load model
+    dev = 'cuda' if cuda else None
+    print(f"Loading model {model_name}.")
+    try:
+        bin_model = SentenceTransformer(model_name, device=dev) 
+    except:
+        bin_model = SentenceTransformer(model_name, device=dev, trust_remote_code=True)
+    for exp in range(exps):
+        train_sents, test_sents, train_labels, test_labels = train_test_split(sentences,labels, test_size=0.2, random_state=exp)
+        label_names = list(set(train_labels))
+        if sanity_check:
+            print("Label names:", label_names)
+            #n = random.randint(0, len(train_labels))
+            #print(f"[{n}] {train_labels[n]}: {train_sents[n]}")
+            #t = random.randint(0, len(test_labels))
+            #print(f"[{t}] {test_labels[t]}: {test_sents[t]}")
+        print("Encoding training sentences.")
+        train_embs = encode_all_sents(train_sents, bin_model)
+        print("Encoding test sentences.")
+        test_embs = encode_all_sents(test_sents, bin_model)
+        clf_prds = classify_svm(train_embs, train_labels, test_embs, r_state= r_state)
+        raps[exp] = {'real': test_labels, 'pred': clf_prds}
+    return raps
+
+def bn_classification_customtts(train_incentives, train_nonincentives, test_incentives, test_nonincentives, cuda=False, exps=1, model_name= "paraphrase-xlm-r-multilingual-v1", sanity_check=False):
+    '''
+    Takes incentive and nonincentive sentences, creates corresponding 
+    label lists, and merges them accordingly. Splits data into trainig
+    and testing sets, initializes a sentence transformer model,
+    creates embeddings of the training and test sentences,
+    returns encoded training sents, test sents, and test labels
+    # custom train test split
+    '''
+    raps = {}
+    #
+    incent_lbls = ["incentive"]*len(train_incentives)
+    noninc_lbls = ["non-incentive"]*len(train_nonincentives)
+    train_sents = train_incentives+train_nonincentives
+    train_labels = incent_lbls+noninc_lbls
+    #
+    incent_lbls = ["incentive"]*len(test_incentives)
+    noninc_lbls = ["non-incentive"]*len(test_nonincentives)
+    test_sents = test_incentives+test_nonincentives
+    test_labels = incent_lbls+noninc_lbls
+    #
+    dev = 'cuda' if cuda else None
+    print(f"Loading model {model_name}.")
+    try:
+        bin_model = SentenceTransformer(model_name, device=dev) 
+    except:
+        bin_model = SentenceTransformer(model_name, device=dev, trust_remote_code=True)
+    print("Encoding training sentences.")
+    train_embs = encode_all_sents(train_sents, bin_model)
+    print("Encoding test sentences.")
+    test_embs = encode_all_sents(test_sents, bin_model)
+    for exp in range(exps):
+        clf_prds = classify_svm(train_embs, train_labels, test_embs, r_state= exp)
+        raps[exp] = {'real': test_labels, 'pred': clf_prds}
+    return raps
+
+def mc_classification_customtts(train_sents, test_sents, train_labels, test_labels, cuda=False, exps=1, model_name= "paraphrase-xlm-r-multilingual-v1", sanity_check=False):
+    '''
+    Takes sentences and labels. Splits data into trainig
+    and testing sets, initializes a sentence transformer model,
+    creates embeddings of the training and test sentences,
+    returns encoded training sents, test sents, and test labels
+    # custom train test split
+    '''
+    raps = {}
+    # load model
+    dev = 'cuda' if cuda else None
+    print(f"Loading model {model_name}.")
+    try:
+        bin_model = SentenceTransformer(model_name, device=dev) 
+    except:
+        bin_model = SentenceTransformer(model_name, device=dev, trust_remote_code=True)
+
+    label_names = list(set(train_labels))
+    if sanity_check:
+        print("Label names:", label_names)
+        #n = random.randint(0, len(train_labels))
+        #print(f"[{n}] {train_labels[n]}: {train_sents[n]}")
+        #t = random.randint(0, len(test_labels))
+        #print(f"[{t}] {test_labels[t]}: {test_sents[t]}")
+    print("Encoding training sentences.")
+    train_embs = encode_all_sents(train_sents, bin_model)
+    print("Encoding test sentences.")
+    test_embs = encode_all_sents(test_sents, bin_model)
+    for exp in range(exps):
+        clf_prds = classify_svm(train_embs, train_labels, test_embs, r_state= exp)
+        raps[exp] = {'real': test_labels, 'pred': clf_prds}
+    return raps
+
+# evaluation
+
+def res_dct_to_cls_rpt(res_dct):
+    '''
+    Takes a real and predicted labels dictionary and returns
+    dictionary of classification reports
+    '''
+    cls_rpt = {
+        'bn':{},
+        'mc':{}
+    }
+    for mode in list(res_dct):
+        for model in list(res_dct[mode]):
+            cls_rpt[mode][model] = {}
+            for exp in list(res_dct[mode][model]):
+                cls_rpt[mode][model][exp] = classification_report(res_dct[mode][model][exp]['real'], res_dct[mode][model][exp]['pred'], output_dict=True)
+    return cls_rpt
+
+def cls_rpt_to_exp_rpt(cls_rpt):
+    '''
+    Takes dictionary of classification reports and returns dictionary of
+    each classification model's average and sd values for accuracy and label
+    f1-scores across the experiments.
+    '''
+    exp_rpt = {
+        'bn':{},
+        'mc':{}
+    }
+    for mode in list(cls_rpt):
+        for model in list(cls_rpt[mode]):
+            if mode == 'mc':
+                exp_rpt[mode][model] = {
+                    "accuracy": {},
+                    "macroavg-f1": {},
+                    "weightavg-f1": {},
+                    "labels": {
+                        'Credit':{},
+                        'Direct_payment':{},
+                        'Fine':{},
+                        'Supplies':{},
+                        'Tax_deduction':{},
+                        'Technical_assistance':{}
+                    }
+                }
+            else:
+                exp_rpt[mode][model]= {
+                    "accuracy": {},
+                    "macroavg-f1": {},
+                    "weightavg-f1": {},
+                    "labels": {
+                        'incentive':{},
+                        'non-incentive':{}
+                    }
+                }
+            accuracy = []
+            macrof1 = []
+            wghtf1=[]
+            label_f1s = {}
+            for label in list(exp_rpt[mode][model]["labels"]):
+                label_f1s[label]=[]
+            for exp in list(cls_rpt[mode][model]):
+                try:
+                    accuracy.append(cls_rpt[mode][model][exp]['accuracy'])
+                    macrof1.append(cls_rpt[mode][model][exp]['macro avg']["f1-score"])
+                    wghtf1.append(cls_rpt[mode][model][exp]['weighted avg']["f1-score"])
+                except:
+                    print(f'\nCould not add accuracy from {mode} {model} exp:{exp}')
+                for label in list(exp_rpt[mode][model]["labels"]):
+                    try:
+                        label_f1s[label].append(cls_rpt[mode][model][exp][label]["f1-score"])
+                    except:
+                        print(f'\nCould not add F1 score for {label} in {mode} {model} exp:{exp}')
+            exp_rpt[mode][model]['accuracy'] = {'average':np.average(accuracy), 'sd': np.std(accuracy)}
+            exp_rpt[mode][model]['macroavg-f1'] = {'average':np.average(macrof1), 'sd': np.std(macrof1)}
+            exp_rpt[mode][model]['weightavg-f1'] = {'average':np.average(wghtf1), 'sd': np.std(wghtf1)}
+            for label in list(exp_rpt[mode][model]["labels"]):
+                exp_rpt[mode][model]["labels"][label] = {'average':np.average(label_f1s[label]), 'sd': np.std(label_f1s[label])}
+    return exp_rpt
+
+def run_experiments(sentences, labels, exps=1, cuda=False, r_state=9, scheck=False):
+    # experiments vary r state of train test split
+    # r state for classifier is consistent
+    models = {"sentence-transformers/paraphrase-xlm-r-multilingual-v1":'bert', "dunzhang/stella_en_1.5B_v5":'stella', "Alibaba-NLP/gte-Qwen2-1.5B-instruct":'qwen', "Alibaba-NLP/gte-large-en-v1.5":'glarg', "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2":'minilm'}
     results_dict = {
         'bn':{
             'bert':{},
             'stella':{},
-            'qwen':{}
+            'qwen':{},
+            'glarg':{},
+            'minilm':{}
         },
         'mc':{
             'bert':{},
             'stella':{},
-            'qwen':{}
+            'qwen':{},
+            'glarg':{},
+            'minilm':{}
         }
     }
+    #
+    inc_sents, noninc_sents = gen_bn_lists(sentences, labels, sanity_check=scheck)
+    mc_sents, mc_labels = gen_mc_sentlab(sentences, labels, sanity_check=scheck)
     stw = time.time()
-    bn_train_embs, bn_test_embs, bn_train_labels, bn_test_labels = bn_generate_embeddings(inc_sents, noninc_sents, cuda, r_state=9, sanity_check=scheck)
-    bn_rf_pred = classify_rf(bn_train_embs, bn_train_labels, bn_test_embs)
-    bn_svm_pred = classify_svm(bn_train_embs, bn_train_labels, bn_test_embs)
-    results_dict['bn']['bert']['rf'] = classification_report(bn_test_labels, bn_rf_pred, output_dict=True)
-    results_dict['bn']['bert']['svm'] = classification_report(bn_test_labels, bn_svm_pred, output_dict=True)
-    mc_train_embs, mc_test_embs, mc_train_labels, mc_test_labels = mc_generate_embeddings(mc_sents, mc_labels, cuda, r_state=9, sanity_check=scheck)
-    mc_rf_pred = classify_rf(mc_train_embs, mc_train_labels, mc_test_embs)
-    mc_svm_pred = classify_svm(mc_train_embs, mc_train_labels, mc_test_embs)
-    results_dict['mc']['bert']['rf'] = classification_report(mc_test_labels, mc_rf_pred, output_dict=True)
-    results_dict['mc']['bert']['svm'] = classification_report(mc_test_labels, mc_svm_pred, output_dict=True)
+    for model in models:
+        for mode in ['bn', 'mc']:
+            if mode=='bn':
+                results_dict[mode][models[model]] = bn_classification(inc_sents, noninc_sents, r_state=r_state, cuda=cuda, exps=exps, model_name=model, sanity_check=scheck)
+            else:
+                results_dict[mode][models[model]] = mc_classification(mc_sents, mc_labels, r_state=r_state, cuda=cuda, exps=exps, model_name=model, sanity_check=scheck)
     etw = time.time()-stw
     print("Time elapsed total:", etw//60, "min and", round(etw%60), "sec")
-    with open(output_dir+"/results_xxx.json", 'w', encoding="utf-8") as outfile:
+    return results_dict
+
+def run_experiments_customtts(train_sents, test_sents, train_labels, test_labels, cuda=False, exps=1, scheck=False):
+    # experiments vary r state of classifier
+    models = {"sentence-transformers/paraphrase-xlm-r-multilingual-v1":'bert', "dunzhang/stella_en_1.5B_v5":'stella', "Alibaba-NLP/gte-Qwen2-1.5B-instruct":'qwen', "Alibaba-NLP/gte-large-en-v1.5":'glarg', "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2":'minilm'}
+    results_dict = {
+        'bn':{
+            'bert':{},
+            'stella':{},
+            'qwen':{},
+            'glarg':{},
+            'minilm':{}
+        },
+        'mc':{
+            'bert':{},
+            'stella':{},
+            'qwen':{},
+            'glarg':{},
+            'minilm':{}
+        }
+    }
+    #
+    train_incentives, train_nonincentives = gen_bn_lists(train_sents, train_labels, sanity_check=scheck)
+    mc_train_sents, mc_train_labels = gen_mc_sentlab(train_sents, train_labels, sanity_check=scheck)
+    test_incentives, test_nonincentives = gen_bn_lists(test_sents, test_labels, sanity_check=scheck)
+    mc_test_sents, mc_test_labels = gen_mc_sentlab(test_sents, test_labels, sanity_check=scheck)
+    stw = time.time()
+    for model in models:
+        for mode in ['bn', 'mc']:
+            if mode=='bn':
+                results_dict[mode][models[model]] = bn_classification_customtts(train_incentives, train_nonincentives, test_incentives, test_nonincentives, exps=exps, cuda=cuda, model_name=model, sanity_check=scheck)
+            else:
+                results_dict[mode][models[model]] = mc_classification_customtts(mc_train_sents, mc_test_sents, mc_train_labels, mc_test_labels, exps=exps, cuda=cuda, model_name=model, sanity_check=scheck)
+    etw = time.time()-stw
+    print("Time elapsed total:", etw//60, "min and", round(etw%60), "sec")
+    return results_dict
+
+def main(sentences, labels, outfn='30Feb', cuda = False, exps=1, r_state=9, scheck = False):
+    results_dict = run_experiments(sentences, labels, exps=exps, cuda=cuda, r_state=r_state, scheck=scheck)
+    with open(output_dir+f"/randp_{outfn}.json", 'w', encoding="utf-8") as outfile:
         json.dump(results_dict, outfile, ensure_ascii=False, indent=4)
+    cls_rpt = res_dct_to_cls_rpt(results_dict)
+    exp_rpt = cls_rpt_to_exp_rpt(cls_rpt)
+    with open(output_dir+f"/exprpt_{outfn}.json", 'w', encoding="utf-8") as outfile:
+        json.dump(exp_rpt, outfile, ensure_ascii=False, indent=4)
+    print('\nDone.')
+
+def main_customtts(train_sents, test_sents, train_labels, test_labels, outfn='30Feb', cuda = False, exps=1, scheck = False):
+    results_dict = run_experiments_customtts(train_sents, test_sents, train_labels, test_labels, exps=exps, cuda=cuda, scheck=scheck)
+    with open(output_dir+f"/randp_{outfn}.json", 'w', encoding="utf-8") as outfile:
+        json.dump(results_dict, outfile, ensure_ascii=False, indent=4)
+    cls_rpt = res_dct_to_cls_rpt(results_dict)
+    exp_rpt = cls_rpt_to_exp_rpt(cls_rpt)
+    with open(output_dir+f"/exprpt_{outfn}.json", 'w', encoding="utf-8") as outfile:
+        json.dump(exp_rpt, outfile, ensure_ascii=False, indent=4)
+    print('\nDone.')
 
 if __name__ == "__main__":
-    main(cuda = True, scheck = True)
+    with open(input_dir+"/19Jan25_firstdatarev.json","r", encoding="utf-8") as f:
+        dcno_json = json.load(f)
+    with open(input_dir+"/27Jan25_query_checked.json","r", encoding="utf-8") as f:
+        qry_json = json.load(f)
+    sents1, labels1 = dcno_to_sentlab(dcno_json)
+    sents2, labels2 = dcno_to_sentlab(qry_json)
+    # merge original and augmented datasets
+    #sents2.extend(sents1)
+    #labels2.extend(labels1)
+    #all_sents, all_labs = remove_duplicates(group_duplicates(sents1,labels1,thresh=90))
+    #main(all_sents, all_labs, outfn='23Feb_dcno_only', exps=10, cuda = True, scheck = True)
+    # handpicked train, hitl test
+    train_sents, train_labels = remove_duplicates(group_duplicates(sents1,labels1,thresh=90))
+    test_sents, test_labels = remove_duplicates(group_duplicates(sents2,labels2,thresh=90))
+    main_customtts(train_sents, test_sents, train_labels, test_labels, outfn='23Feb_hptrain_hitltest', exps=10, cuda = True, scheck = True)
+    # hitl train, handpicked test
+    train_sents, train_labels = remove_duplicates(group_duplicates(sents2,labels2,thresh=90))
+    test_sents, test_labels = remove_duplicates(group_duplicates(sents1,labels1,thresh=90))
+    main_customtts(train_sents, test_sents, train_labels, test_labels, outfn='23Feb_hitltrain_hptest', exps=10, cuda = True, scheck = True)

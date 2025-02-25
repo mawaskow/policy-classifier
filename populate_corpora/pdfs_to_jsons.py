@@ -24,7 +24,7 @@ import glob
 #   Get full text of PDFs
 ##########################################################################################
 
-def txt_to_dct(pdfReader, pdf_meta):
+def txt_to_dct_meta(pdfReader, pdf_meta):
     '''
     Input: 
         pdfReader (PyPDF2 object): Reader in use in loop
@@ -38,6 +38,62 @@ def txt_to_dct(pdfReader, pdf_meta):
         #page_text = text_cleaning(page_text)  # clean pdf text
         doc_dict["text"] += page_text  # concatenate pages' text
     return doc_dict
+
+def txt_to_dct(pdfReader):
+    '''
+    Input: 
+        pdfReader (PyPDF2 object): Reader in use in loop
+    Returns:
+        doc_dict (dct): dictionary of single pdf with text
+    '''
+    doc_dict = {}
+    doc_dict["text"]=""
+    for page in range(len(pdfReader.pages)):
+        page_text = pdfReader.pages[page].extract_text()  # extracting pdf text
+        #page_text = text_cleaning(page_text)  # clean pdf text
+        doc_dict["text"] += page_text  # concatenate pages' text
+    return doc_dict
+
+def pdfs_to_txt_dct(input_path):
+    '''
+    Input:
+        input_path (str): path directory or zip folder of pdfs
+    Output:
+        error messages
+    Returns:
+        pdf_dict (dct): dictionary of pdfs text
+    '''
+    errors = []
+    filenames = []
+    pdf_dict = {}
+    if input_path[-4:]== ".zip":
+        with ZipFile(input_path) as myzip:
+            filenames = list(map(lambda x: x.filename, filter(lambda x: not x.is_dir(), myzip.infolist())))
+            for file in tqdm(filenames):
+                key = os.path.splitext(os.path.basename(file))[0]
+                try:
+                    pdfReader = PdfReader(BytesIO(myzip.read(file)))
+                    # doc_dict holds the attributes of each pdf file
+                    doc_dict = txt_to_dct(pdfReader)
+                    pdf_dict[os.path.splitext(os.path.basename(file))[0]] = doc_dict
+                except Exception as e:  # In case the file is corrupted
+                    errors.append(f"Could not read {file} due to {e}")
+    else:
+        input_path = input_path+"\\**\\*.*"
+        for file in glob.glob(input_path, recursive=True):
+            filenames.append(file)
+        for file in tqdm(filenames):
+            key = os.path.splitext(os.path.basename(file))[0]
+            try:
+                pdfReader = PdfReader(file)  # read file
+                # doc_dict holds the attributes of each pdf file
+                doc_dict = txt_to_dct(pdfReader)
+                pdf_dict[key] = doc_dict
+            except Exception as e:  # In case the file is corrupted
+                errors.append(f"Could not read {file} due to {e}")
+    print(errors)
+    print(f"Successfully extracted {len(pdf_dict)}/{len(filenames)} pdfs")
+    return pdf_dict
 
 def pdfs_to_txt_meta_dct(input_path, meta_dct):
     '''

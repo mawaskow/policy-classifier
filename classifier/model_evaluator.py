@@ -188,7 +188,7 @@ class ModelEvaluator:
 
         fig = plt.gcf()
         fig.set_size_inches(15, 10)  # enlarging CM
-        wandb.log({"Test set CM": wandb.Image(fig)})
+        #wandb.log({"Test set CM": wandb.Image(fig)})
         plt.close()
 
     def plot_precision_recall_curve(self, y_true, y_pred, bin_class=False, all_classes=False,

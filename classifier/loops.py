@@ -1,5 +1,5 @@
 import math
-import wandb
+#import wandb
 import time
 from pathlib import Path
 import os
@@ -16,12 +16,11 @@ from sklearn.model_selection import train_test_split
 from torch import nn, Tensor
 from torch.utils.data import DataLoader
 
-from tasks.data_augmentation.src.zero_shot_classification.latent_embeddings_classifier import *
-from tasks.data_loading.src.utils import *
-from tasks.data_visualization.src.plotting import *
-from tasks.fine_tuning_sbert.src.sentence_transformer import EarlyStoppingSentenceTransformer
-from tasks.fine_tuning_sbert.src.custom_evaluator import CustomLabelAccuracyEvaluator
-from tasks.model_evaluation.src.model_evaluator import *
+from latent_embeddings_classifier import *
+from utils import *
+from sentence_transformer import EarlyStoppingSentenceTransformer
+from custom_evaluator import CustomLabelAccuracyEvaluator
+from model_evaluator import *
 
 if spacy.prefer_gpu():
     print("Using the GPU")
@@ -73,9 +72,9 @@ def train(config=None):
     """
 
     # this will write to the same project every time
-    wandb.init(config=config, magic=True)
+    #wandb.init(config=config, magic=True)
 
-    config = wandb.config
+    #config = wandb.config
 
     print(
         f"Grid Search Fine tuning parameters:\n{config}")
@@ -84,7 +83,7 @@ def train(config=None):
 
     model_deets = f"{config.eval_classifier}_model={config.model_name}_test-perc={config.dev_perc}_seed={config.seeds}"
 
-    wandb.run.notes = model_deets
+    #wandb.run.notes = model_deets
 
     X_train, X_dev, y_train, y_dev = train_test_split(train_sents, train_labels, test_size=config.dev_perc,
                                                       stratify=train_labels, random_state=100)
@@ -189,8 +188,8 @@ def single_run_fine_tune(train_params, train_sents, train_labels, label_names):
                                                  name='lae-dev', label_names=label_names)
 
     # this will write to the same project every time
-    run = wandb.init(notes=model_deets, project='WRI', tags=['baseline', 'training'],
-                     entity='ramanshsharma')
+    #run = wandb.init(notes=model_deets, project='WRI', tags=['baseline', 'training'],
+    #                 entity='ramanshsharma')
 
     model.fit(train_objectives=[(train_dataloader, classifier)],
               evaluator=dev_evaluator,
@@ -204,13 +203,13 @@ def single_run_fine_tune(train_params, train_sents, train_labels, label_names):
               show_progress_bar=False
               )
 
-    run.save()
-    run_name = run.id
+    #run.save()
+    #run_name = run.id
 
     torch.save(model, output_path+'/saved_model.pt')
-    wandb.save(output_path+'/saved_model.pt')
+    #wandb.save(output_path+'/saved_model.pt')
 
-    wandb.finish()
+    #wandb.finish()
 
     end = time.time()
     hours, rem = divmod(end - start, 3600)
@@ -218,7 +217,7 @@ def single_run_fine_tune(train_params, train_sents, train_labels, label_names):
     print("Time taken for fine-tuning:",
           "{:0>2}:{:0>2}:{:05.2f}".format(int(hours), int(minutes), seconds))
 
-    return run_name
+    #return run_name
 
 
 def make_dataset_public(train_sents_, train_labels_, label_names_):
