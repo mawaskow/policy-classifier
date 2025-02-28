@@ -12,7 +12,7 @@ from typing import Dict
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import wandb
+#import wandb
 from torch.utils.data import DataLoader
 from torch import device
 import logging
@@ -76,7 +76,7 @@ def plot_confusion_matrix(cm, label_names, title='Confusion matrix',
     # wandb code
     fig = plt.gcf()
     fig.set_size_inches(15, 10)  # enlarging CM
-    wandb.log({"confusion matrix": wandb.Image(fig)})
+    #wandb.log({"confusion matrix": wandb.Image(fig)})
     plt.close()  # this should prevent output of plt.imshow above
 
 
@@ -89,7 +89,7 @@ class CustomLabelAccuracyEvaluator(SentenceEvaluator):
     The results are written in a CSV. If a CSV already exists, then values are appended.
     """
 
-    def __init__(self, dataloader: DataLoader, name: str = "", label_names: list = None, softmax_model=None):
+    def __init__(self, dataloader: DataLoader, name: str = "", label_names: list = None, softmax_model=None, output_path = ""):
         """
         Constructs an evaluator for the given dataset
 
@@ -100,8 +100,9 @@ class CustomLabelAccuracyEvaluator(SentenceEvaluator):
         self.name = name
         self.softmax_model = softmax_model
         self.label_names = label_names
+        self.output_path = output_path
 
-    def __call__(self, model, epoch: int = -1, steps: int = -1) -> dict:
+    def __call__(self, model, epoch: int = -1, steps: int = -1, output_path = "") -> dict:
         model.eval()
         total = 0
         correct = 0
@@ -121,9 +122,10 @@ class CustomLabelAccuracyEvaluator(SentenceEvaluator):
         all_labels = []
         for step, batch in enumerate(tqdm(self.dataloader, desc="Evaluating")):
             features, label_ids = batch_to_device(batch, model.device)
+            label_ids = label_ids #.to(model.device)
             with torch.no_grad():
-                _, prediction = self.softmax_model(features, labels=None)
-
+                _, prediction = self.softmax_model(features, labels=None) #.to(model.device)
+            prediction = prediction.to(model.device)
             predictions_as_numbers = torch.argmax(prediction, dim=1)
             all_predictions.extend(predictions_as_numbers.tolist())
             all_labels.extend(label_ids.tolist())
@@ -144,7 +146,8 @@ class CustomLabelAccuracyEvaluator(SentenceEvaluator):
             "Accuracy: {:.4f} ({}/{})\n".format(accuracy, correct, total))
         logging.info(f"Macro F1: {macro_f1}")
         logging.info(f"Weighted F1: {weighted_f1}")
+        print(score_dict)
 
-        plot_confusion_matrix(cm, self.label_names)
+        #plot_confusion_matrix(cm, self.label_names)
 
         return score_dict

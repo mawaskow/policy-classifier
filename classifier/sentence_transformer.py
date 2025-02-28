@@ -8,7 +8,7 @@ Original source code: https://github.com/UKPLab/sentence-transformers/blob/maste
 from typing import Iterable, Dict, Tuple, Type, Callable
 import os
 import transformers
-import wandb
+#import wandb
 from sentence_transformers import SentenceTransformer
 
 from sentence_transformers.evaluation import LabelAccuracyEvaluator, SentenceEvaluator
@@ -21,7 +21,6 @@ from statistics import mean
 
 
 class EarlyStoppingSentenceTransformer(SentenceTransformer):
-
     def fit(self,
             train_objectives: Iterable[Tuple[DataLoader, nn.Module]],
             evaluator: SentenceEvaluator = None,
@@ -29,7 +28,7 @@ class EarlyStoppingSentenceTransformer(SentenceTransformer):
             steps_per_epoch=None,
             scheduler: str = 'WarmupLinear',
             warmup_steps: int = 10000,
-            optimizer_class: Type[Optimizer] = transformers.AdamW,
+            optimizer_class: Type[Optimizer] = torch.optim.AdamW, #transformers.AdamW,
             optimizer_params: Dict[str, object] = {'lr': 2e-5, 'correct_bias': True},
             weight_decay: float = 0.01,
             evaluation_steps: int = 0,
@@ -81,7 +80,8 @@ class EarlyStoppingSentenceTransformer(SentenceTransformer):
             from torch.cuda.amp import autocast
             scaler = torch.cuda.amp.GradScaler()
 
-        self.to(self._target_device)
+        self.to("cuda")
+        #self.to(self.device)
 
         if output_path is not None:
             os.makedirs(output_path, exist_ok=True)
@@ -94,7 +94,7 @@ class EarlyStoppingSentenceTransformer(SentenceTransformer):
 
         loss_models = [loss for _, loss in train_objectives]
         for loss_model in loss_models:
-            loss_model.to(self._target_device)
+            loss_model.to(self.device)
 
         self.best_score = -9999999
 
@@ -154,6 +154,9 @@ class EarlyStoppingSentenceTransformer(SentenceTransformer):
 
                     features, labels = data
 
+                    features = {key: value.to(self.device) for key, value in features[0].items()}
+                    labels = labels.to(self.device) if isinstance(labels, torch.Tensor) else torch.tensor(labels, device=self.device)
+
                     if use_amp:
                         with autocast():
                             loss_value = loss_model(features, labels)
@@ -192,8 +195,8 @@ class EarlyStoppingSentenceTransformer(SentenceTransformer):
                 self, output_path=output_path, epoch=epoch, steps=-1)
             training_acc_list.append(training_acc_evaluated)
 
-            wandb.log({"train_acc": training_acc_evaluated,
-                      "epoch": epoch})
+            #wandb.log({"train_acc": training_acc_evaluated,
+            #          "epoch": epoch})
 
             # validation evaluation
             flag = self._eval_during_training(evaluator, output_path, epoch, -1)
@@ -221,11 +224,11 @@ class EarlyStoppingSentenceTransformer(SentenceTransformer):
         score = score_dict["accuracy"]
         self.acc_list.append(score)
 
-        wandb.log({"validation_acc": score, "epoch": epoch})
-        wandb.log(
-            {"Macro F1 validation": score_dict['macro_f1'], "epoch": epoch})
-        wandb.log(
-            {"Weighted F1 validation": score_dict['weighted_f1'], "epoch": epoch})
+        #wandb.log({"validation_acc": score, "epoch": epoch})
+        #wandb.log(
+        #    {"Macro F1 validation": score_dict['macro_f1'], "epoch": epoch})
+        #wandb.log(
+        #    {"Weighted F1 validation": score_dict['weighted_f1'], "epoch": epoch})
 
         prev_score = self.acc_list[-2]
         moving_average = mean(self.acc_list[-self.patience - 1: -1])

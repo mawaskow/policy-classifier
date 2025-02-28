@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 from latent_embeddings_classifier import *
 from utils import *
 from sentence_transformer import EarlyStoppingSentenceTransformer
+from sentence_transformers import SentenceTransformer
 from custom_evaluator import CustomLabelAccuracyEvaluator
 from model_evaluator import *
 
@@ -94,7 +95,8 @@ def train(config=None):
     dev_samples = build_data_samples(X_dev, label2int, y_dev)
 
     # Train set config
-    model = EarlyStoppingSentenceTransformer(config.model_name)
+    #model = EarlyStoppingSentenceTransformer(config.model_name)
+    model = SentenceTransformer(config.model_name)
     train_dataset = SentencesDataset(train_samples, model=model)
     train_dataloader = DataLoader(
         train_dataset, shuffle=True, batch_size=train_batch_size)
@@ -162,7 +164,8 @@ def single_run_fine_tune(train_params, train_sents, train_labels, label_names):
     dev_samples = build_data_samples(X_dev, label2int, y_dev)
 
     # Train set config
-    model = EarlyStoppingSentenceTransformer(model_name)
+    #model = EarlyStoppingSentenceTransformer(model_name)
+    model = SentenceTransformer(model_name)
     train_dataset = SentencesDataset(train_samples, model=model)
     train_dataloader = DataLoader(
         train_dataset, shuffle=True, batch_size=train_batch_size)
@@ -280,7 +283,7 @@ def evaluate_using_sbert(model, test_sents, test_labels, label_names, numeric_la
         label_names, y_true=numeric_labels, y_pred=numeric_preds)
 
     evaluator.plot_confusion_matrix(color_map='Blues')
-    visualize_embeddings_2D(np.vstack(test_embs), test_labels, tsne_perplexity=50)
+    #visualize_embeddings_2D(np.vstack(test_embs), test_labels, tsne_perplexity=50)
     print("Macro/Weighted Avg F1-score:", evaluator.avg_f1.tolist())
 
     return evaluator.avg_f1.tolist()
@@ -310,7 +313,7 @@ def evaluate_using_sklearn(clf, model, train_sents, train_labels, test_sents, te
     evaluator = ModelEvaluator(
         label_names, y_true=numeric_test_labels, y_pred=numeric_preds)
 
-    visualize_embeddings_2D(np.vstack(test_embs), test_labels, tsne_perplexity=50)
+    #visualize_embeddings_2D(np.vstack(test_embs), test_labels, tsne_perplexity=50)
     evaluator.plot_confusion_matrix(color_map='Blues')
     print("Macro/Weighted Avg F1-score:", evaluator.avg_f1.tolist())
 
