@@ -148,7 +148,7 @@ def classify_svm(train_embs, train_labels, test_embs, r_state= 9):
     clf_preds = [clf.predict(sent_emb)[0] for sent_emb in test_embs]
     return clf_preds
 
-def bn_classification(sentences, labels, cuda=False, r_state=9, exps=1, model_name= "paraphrase-xlm-r-multilingual-v1", sanity_check=False):
+def bn_classification(sentences, labels, cuda=False, r_state=9, exps=1, model_name= "paraphrase-xlm-r-multilingual-v1"):
     '''
     Takes incentive and nonincentive sentences, creates corresponding 
     label lists, and merges them accordingly. Splits data into trainig
@@ -308,9 +308,9 @@ def run_experiments(sentences, labels, exps=1, cuda=False, r_state=9, scheck=Fal
     for model in models:
         for mode in ['bn', 'mc']:
             if mode=='bn':
-                results_dict[mode][models[model]] = bn_classification(bn_sents, bn_labels, r_state=r_state, cuda=cuda, exps=exps, model_name=model, sanity_check=scheck)
+                results_dict[mode][models[model]] = bn_classification(bn_sents, bn_labels, r_state=r_state, cuda=cuda, exps=exps, model_name=model)
             else:
-                results_dict[mode][models[model]] = mc_classification(mc_sents, mc_labels, r_state=r_state, cuda=cuda, exps=exps, model_name=model, sanity_check=scheck)
+                results_dict[mode][models[model]] = mc_classification(mc_sents, mc_labels, r_state=r_state, cuda=cuda, exps=exps, model_name=model)
     etw = time.time()-stw
     print("Time elapsed total:", etw//60, "min and", round(etw%60), "sec")
     return results_dict

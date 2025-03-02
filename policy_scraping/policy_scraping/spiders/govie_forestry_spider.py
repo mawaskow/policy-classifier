@@ -28,7 +28,8 @@ doc_akw_dct = allkwddoc["doc_anti_ie"]
 #
 class GovIEForestSpider(BaseSpider):
     name = "goviefor"
-    #scrapy crawl goviefor -O ../outputs/goviefor.json
+    # in policy-classifier/policy_scraping/policy_scraping dir
+    # scrapy crawl goviefor -O ../outputs/goviefor.json
 
     @classmethod
     def update_settings(cls, settings):
