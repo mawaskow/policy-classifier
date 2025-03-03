@@ -25,6 +25,20 @@ def resample_dict(label_lib):
   sampled_dct['Non-Incentive'] = random.sample(label_lib['Non-Incentive'], 20)
   return sampled_dct
 
+def get_common_sentlabs(sents_c, labs_c, sents_a, labs_a):
+    s_sents = []
+    labels_sc = []
+    labels_sa = []
+    for ind_a, sent_a in enumerate(sents_a):
+        if sent_a in sents_c:
+            s_sents.append(sent_a)
+            ind_c = sents_c.index(sent_a)
+            labels_sc.append(labs_c[ind_c])
+            labels_sa.append(labs_a[ind_a])
+        else:
+            continue
+    return s_sents, labels_sc, labels_sa
+
 def all_to_bin(all_labels):
     new = []
     for label in all_labels:
@@ -34,20 +48,30 @@ def all_to_bin(all_labels):
             new.append("Incentive")
     return new
 
+def all_to_sharedmc(labs_c, labs_a, bin_labs_c, bin_labs_a):
+    mclabsc, mclaba = [], []
+    for i, labi in enumerate(bin_labs_c):
+        if labi == "Incentive" and bin_labs_a[i] == "Incentive":
+            mclabsc.append(labs_c[i])
+            mclaba.append(labs_a[i])
+    return mclabsc, mclaba
+
 def main():
     cwd = os.getcwd()
+    # generate
     with open(cwd+"/inputs/19Jan25_firstdatarev.json","r", encoding="utf-8") as f:
         dcno_json = json.load(f)
+    sents_c, labels_c = dcno_to_sentlab(dcno_json)
     label_lib = label_dct(dcno_json)
     resampled = resample_dict(label_lib)
     ann_frame = [{'text':sent, 'label':[]} for key in resampled.keys() for sent in resampled[key]]
     with open(cwd+"/inputs/subsample.json", 'w', encoding="utf-8") as outfile:
         json.dump(ann_frame, outfile, ensure_ascii=False, indent=4)
-    
+    # analyze
     with open(cwd+"/inputs/annotation_odon.json","r", encoding="utf-8") as f:
         ann_json = json.load(f)
-
     sentsa, labelsa = dcno_to_sentlab(ann_json)
+    # normalize labels
     sentsa1, labelsa1 = [], []
     swap_labs = {'non-incentive':'Non-Incentive', 'fine':'Fine', 'tax deduction':'Tax_deduction', 'credit':'Credit', 'direct payment':'Direct_payment', 'supplies':'Supplies', 'technical assistance':'Technical_assistance'}
     for i, lab in enumerate(labelsa):
@@ -57,35 +81,14 @@ def main():
         except:
             pass
 
-    print(len(sentsa1), len(labelsa1))
+    s_sents, labels_sc, labels_sa = get_common_sentlabs(sents_c, labels_c, sentsa1, labelsa1)
+    print(cohen_kappa_score(labels_sc, labels_sa))
 
-    labelsc = []
-    s_sents = []
-    labelsa2 = []
+    labs_binc = all_to_bin(labels_sc)
+    labs_bina = all_to_bin(labels_sa)
+    cohen_kappa_score(labs_binc, labs_bina)
 
-    for inda, sent in enumerate(sentsa1):
-        if sent in sents1:
-            s_sents.append(sent)
-            indc = sents1.index(sent)
-            labelsc.append(labels1[indc])
-            labelsa2.append(labelsa1[inda])
-        else:
-            continue
-    for i in [labelsc, s_sents, labelsa2]:
-        print(len(i))
-
-    print(cohen_kappa_score(labelsc, labelsa2))
-
-    binlabsc = all_to_bin(labelsc)
-    binlaba = all_to_bin(labelsa2)
-
-    cohen_kappa_score(binlabsc, binlaba)
-
-    mclabsc, mclaba = [], []
-    for i, labi in enumerate(binlabsc):
-        if labi == "Incentive" and binlaba[i] == "Incentive":
-            mclabsc.append(labelsc[i])
-            mclaba.append(labelsa2[i])
+    mclabsc, mclaba = all_to_sharedmc(labels_sc, labels_sa, labs_binc, labs_bina)
     print(len(mclabsc), len(mclaba))
 
     cohen_kappa_score(mclabsc, mclaba)
