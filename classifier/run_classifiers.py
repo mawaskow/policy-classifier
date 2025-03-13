@@ -9,8 +9,9 @@ import os
 import json
 import time
 import random
+from tqdm import tqdm
+import torch
 from rapidfuzz import fuzz
-from latent_embeddings_classifier import encode_all_sents
 import numpy as np
 
 cwd = os.getcwd()
@@ -141,6 +142,22 @@ def gen_mc_sentlab(sents, labels, sanity_check=False):
             print(f'[{n}] {mc_labels[n]}: {mc_sents[n]}')
     return mc_sents, mc_labels
 
+def generate_dataset(sentences,labels,test_split=.2, r_state=9):
+    train_sents, test_sents, train_labels, test_labels = train_test_split(sentences,labels, stratify=labels, test_size=test_split, random_state=r_state)
+    finetuning = [{"text":text, "label":label} for text, label in zip(train_sents, train_labels)]
+    testing = [{"text":text, "label":label} for text, label in zip(test_sents, test_labels)]
+    ds = {"train":finetuning, "test":testing}
+    return ds, f"_ts{int(test_split*100)}_r{r_state}"
+
+# classification
+
+def encode_all_sents(all_sents, sbert_model):
+    '''
+    modified from previous repository's latent_embeddings_classifier.py
+    '''
+    stacked = np.vstack([sbert_model.encode(sent) for sent in tqdm(all_sents)])
+    return [torch.from_numpy(element).reshape((1, element.shape[0])) for element in stacked]
+
 def classify_svm(train_embs, train_labels, test_embs, r_state= 9):
     print("Evaluating.")
     clf = svm.SVC(gamma=0.001, C=100., random_state=r_state)
@@ -215,9 +232,7 @@ def res_dct_to_cls_rpt(res_dct):
     }
     for mode in list(res_dct):
         for model in list(res_dct[mode]):
-            cls_rpt[mode][model] = {}
-            for exp in list(res_dct[mode][model]):
-                cls_rpt[mode][model][exp] = classification_report(res_dct[mode][model][exp]['real'], res_dct[mode][model][exp]['pred'], output_dict=True)
+            cls_rpt[mode][model] = classification_report(res_dct[mode][model]['real'], res_dct[mode][model]['pred'], output_dict=True)
     return cls_rpt
 
 def cls_rpt_to_exp_rpt(cls_rpt):
@@ -262,23 +277,22 @@ def cls_rpt_to_exp_rpt(cls_rpt):
             label_f1s = {}
             for label in list(exp_rpt[mode][model]["labels"]):
                 label_f1s[label]=[]
-            for exp in list(cls_rpt[mode][model]):
-                try:
-                    accuracy.append(cls_rpt[mode][model][exp]['accuracy'])
-                    macrof1.append(cls_rpt[mode][model][exp]['macro avg']["f1-score"])
-                    wghtf1.append(cls_rpt[mode][model][exp]['weighted avg']["f1-score"])
-                except:
-                    print(f'\nCould not add accuracy from {mode} {model} exp:{exp}')
-                for label in list(exp_rpt[mode][model]["labels"]):
-                    try:
-                        label_f1s[label].append(cls_rpt[mode][model][exp][label]["f1-score"])
-                    except:
-                        print(f'\nCould not add F1 score for {label} in {mode} {model} exp:{exp}')
-            exp_rpt[mode][model]['accuracy'] = {'average':np.average(accuracy), 'sd': np.std(accuracy)}
-            exp_rpt[mode][model]['macroavg-f1'] = {'average':np.average(macrof1), 'sd': np.std(macrof1)}
-            exp_rpt[mode][model]['weightavg-f1'] = {'average':np.average(wghtf1), 'sd': np.std(wghtf1)}
+            try:
+                accuracy.append(cls_rpt[mode][model]['accuracy'])
+                macrof1.append(cls_rpt[mode][model]['macro avg']["f1-score"])
+                wghtf1.append(cls_rpt[mode][model]['weighted avg']["f1-score"])
+            except:
+                print(f'\nCould not add accuracy from {mode} {model}')
             for label in list(exp_rpt[mode][model]["labels"]):
-                exp_rpt[mode][model]["labels"][label] = {'average':np.average(label_f1s[label]), 'sd': np.std(label_f1s[label])}
+                try:
+                    label_f1s[label].append(cls_rpt[mode][model][label]["f1-score"])
+                except:
+                    print(f'\nCould not add F1 score for {label} in {mode} {model}')
+            exp_rpt[mode][model]['accuracy'] = {'average':np.average(accuracy)}
+            exp_rpt[mode][model]['macroavg-f1'] = {'average':np.average(macrof1)}
+            exp_rpt[mode][model]['weightavg-f1'] = {'average':np.average(wghtf1)}
+            for label in list(exp_rpt[mode][model]["labels"]):
+                exp_rpt[mode][model]["labels"][label] = {'average':np.average(label_f1s[label])}
     return exp_rpt
 
 def run_experiments(sentences, labels, exps=1, cuda=False, r_state=9, scheck=False):

@@ -10,62 +10,86 @@ import json
 import time
 import random
 from rapidfuzz import fuzz
-from latent_embeddings_classifier import encode_all_sents
 import numpy as np
-
-from run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab, gen_bn_sentlab, gen_mc_sentlab, classify_svm, res_dct_to_cls_rpt, cls_rpt_to_exp_rpt
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+from run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab, gen_bn_sentlab, gen_mc_sentlab, classify_svm, res_dct_to_cls_rpt, cls_rpt_to_exp_rpt, encode_all_sents
+import gc
+from tqdm import tqdm
 
 cwd = os.getcwd()
-output_dir =  cwd+"/outputs/models"
+output_dir =  cwd+"/outputs/automodel_wmods"
 input_dir =  cwd+"/inputs"
 
 # FUNCTION DEFINITIONS
 # preprocessing
 
-def ft_classification(sentences, labels, model_address, cuda=False, exps=1, r=9):
-    raps = {}
+def ft_classification(sentences, labels, model_address, cuda=False, batch=32):
+    num_lbs = len(set(labels))
     # load model
     dev = 'cuda' if cuda else None
-    #tts_r =int(model_address.split("_")[-1].split('.')[0])
-    train_sents, test_sents, train_labels, test_labels = train_test_split(sentences,labels,stratify=labels, test_size=0.2, random_state=r)
-    print(f"Loading model {model_address.split('/')[-1]}.")
-    model = SentenceTransformer(model_address, device=dev)
-    print("Encoding training sentences.")
-    train_embs = encode_all_sents(train_sents, model)
-    print("Encoding test sentences.")
-    test_embs = encode_all_sents(test_sents, model) 
-    for exp in range(exps):
-        clf_prds = classify_svm(train_embs, train_labels, test_embs, r_state= exp)
-        raps[exp] = {'real': test_labels, 'pred': clf_prds}
+    int2label=dict(zip(range(len(set(labels))), set(labels)))
+    label2int = dict(zip(set(labels), range(len(set(labels)))))
+    print("Loading tokenizer")
+    tokenizer = AutoTokenizer.from_pretrained(model_address)
+    print("Loading model")
+    model = AutoModelForSequenceClassification.from_pretrained(model_address, num_labels=num_lbs,id2label=int2label, label2id=label2int).to(dev)
+    model.eval()
+    print("Running model")
+    prds_lst = []
+    #with torch.no_grad():
+    for i in tqdm(range(0, len(sentences), batch)):
+        bsents = sentences[i : i + batch]
+        test_embs = tokenizer(bsents, truncation=True, padding=True, return_tensors="pt").to(dev)
+        logits = model(**test_embs).logits
+        #prds = torch.argmax(logits, dim=1) #.cpu().numpy()
+        prds = torch.max(logits,1).indices
+        prds_lst.extend(prds.tolist())
+        del test_embs, logits
+        torch.cuda.empty_cache()
+        gc.collect()
+    raps = {'real': labels, 'pred': [int2label[prd] for prd in prds_lst]}
+    print("Freeing memory")
+    del model
+    torch.cuda.empty_cache()
+    gc.collect()
     return raps
 
 def run_experiments(sentences, labels, exps=1, cuda=False, scheck=False, r=9):
     # r should be same r used in traintestsplit
     models = {}
-    for i in range(10):
-        models[f'bert_bn_e10_r{i}'] = output_dir+f'/paraphrase-xlm-r-multilingual-v1_bn_epochs_10_rstate_{i}.pt'
-        models[f'bert_mc_e10_r{i}'] = output_dir+f'/paraphrase-xlm-r-multilingual-v1_mc_epochs_10_rstate_{i}.pt'
+    for i in range(5,10):
+        models[f'bert_bn_e10_r{i}'] = output_dir+f'/paraphrase-xlm-r-multilingual-v1_bn_e10_r{i}.pt'
+        models[f'bert_mc_e10_r{i}'] = output_dir+f'/paraphrase-xlm-r-multilingual-v1_mc_e10_r{i}.pt'
     print(list(models))
     results_dict = {'bn':{}, 'mc':{}}
     #
     bn_sents, bn_labels = gen_bn_sentlab(sentences, labels, sanity_check=scheck)
     mc_sents, mc_labels = gen_mc_sentlab(sentences, labels, sanity_check=scheck)
+    
     bn_ft_sents, bn_ho_sents, bn_ft_labels, bn_ho_labels = train_test_split(bn_sents, bn_labels, stratify=bn_labels, test_size=0.2, random_state=r)
-    mc_ft_sents, mc_ho_sents, mc_ft_labels, mc_ho_labels = train_test_split(mc_sents, mc_labels, stratify=mc_labels, test_size=0.25, random_state=r)
+    mc_ft_sents, mc_ho_sents, mc_ft_labels, mc_ho_labels = train_test_split(mc_sents, mc_labels, stratify=mc_labels, test_size=0.3, random_state=r)
     stw = time.time()
     for model in models:
-        print(f'Running model {model}')
+        print(f'\nRunning model {model}')
+        #print(torch.cuda.memory_allocated() / 1e9, "GB allocated before model")
+        #print(torch.cuda.memory_reserved() / 1e9, "GB reserved before model")
+        st = time.time()
         mode = model.split('_')[1]
+        torch.cuda.empty_cache()
         if mode=='bn':
             try:
-                results_dict[mode][model] = ft_classification(bn_ho_sents, bn_ho_labels, models[model], cuda=cuda, exps=exps, r=r)
-            except:
-                pass
+                results_dict[mode][model] = ft_classification(bn_ho_sents, bn_ho_labels, models[model], cuda=cuda)
+            except Exception as e:
+                print(f"\nError in {model}: {e}\n")
         else:
             try:
-                results_dict[mode][model] = ft_classification(mc_ho_sents, mc_ho_labels, models[model], cuda=cuda, exps=exps, r=r)
-            except:
-                pass
+                results_dict[mode][model] = ft_classification(mc_ho_sents, mc_ho_labels, models[model], cuda=cuda)
+            except Exception as e:
+                print(f"\nError in {model}: {e}\n")
+        print(f"{model} run completed in in {round(time.time()-st,2)}s")
+        torch.cuda.empty_cache()
+        gc.collect()
     etw = time.time()-stw
     print("Time elapsed total:", etw//60, "min and", round(etw%60), "sec")
     return results_dict
@@ -91,4 +115,4 @@ if __name__ == "__main__":
     sents2.extend(sents1)
     labels2.extend(labels1)
     all_sents, all_labs = remove_duplicates(group_duplicates(sents1,labels1,thresh=90))
-    main(all_sents, all_labs, outfn='28Feb_ft_berts_4', exps=10, cuda = True, scheck = False, r=69)
+    main(all_sents, all_labs, outfn='13Mar_automodel_wmods', exps=1, cuda = True, scheck = False, r=69)
