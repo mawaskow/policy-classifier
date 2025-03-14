@@ -18,7 +18,7 @@ import gc
 from tqdm import tqdm
 
 cwd = os.getcwd()
-output_dir =  cwd+"/outputs/automodel_wmods"
+output_dir =  cwd+"/outputs/bn_automodel_nomods_evalin"
 input_dir =  cwd+"/inputs"
 
 # FUNCTION DEFINITIONS
@@ -35,6 +35,8 @@ def ft_classification(sentences, labels, model_address, cuda=False, batch=32):
     print("Loading model")
     model = AutoModelForSequenceClassification.from_pretrained(model_address, num_labels=num_lbs,id2label=int2label, label2id=label2int).to(dev)
     model.eval()
+    for name, param in model.named_parameters():
+        print(name, param.mean().item())
     print("Running model")
     prds_lst = []
     #with torch.no_grad():
@@ -58,9 +60,9 @@ def ft_classification(sentences, labels, model_address, cuda=False, batch=32):
 def run_experiments(sentences, labels, exps=1, cuda=False, scheck=False, r=9):
     # r should be same r used in traintestsplit
     models = {}
-    for i in range(5,10):
+    for i in range(10):
         models[f'bert_bn_e10_r{i}'] = output_dir+f'/paraphrase-xlm-r-multilingual-v1_bn_e10_r{i}.pt'
-        models[f'bert_mc_e10_r{i}'] = output_dir+f'/paraphrase-xlm-r-multilingual-v1_mc_e10_r{i}.pt'
+        #models[f'bert_mc_e10_r{i}'] = output_dir+f'/paraphrase-xlm-r-multilingual-v1_mc_e10_r{i}.pt'
     print(list(models))
     results_dict = {'bn':{}, 'mc':{}}
     #
@@ -115,4 +117,4 @@ if __name__ == "__main__":
     sents2.extend(sents1)
     labels2.extend(labels1)
     all_sents, all_labs = remove_duplicates(group_duplicates(sents1,labels1,thresh=90))
-    main(all_sents, all_labs, outfn='13Mar_automodel_wmods', exps=1, cuda = True, scheck = False, r=69)
+    main(all_sents, all_labs, outfn='14Mar_bn_automodel_nomods_evalin_test', exps=1, cuda = True, scheck = False, r=69)

@@ -20,38 +20,28 @@ import numpy as np
 import math
 from transformers import AutoModel, AutoTokenizer, AutoModelForSequenceClassification, DataCollatorWithPadding, TrainingArguments, Trainer
 import evaluate
-from datasets import Dataset
+from datasets import Dataset, DatasetDict
 from collections import Counter
 
 cwd = os.getcwd()
-output_dir = cwd+"/outputs/automodel_nomods"
+output_dir = cwd+"/outputs/automodel_nomods_evalin"
 input_dir = cwd+"/inputs"
 
 from run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab, gen_bn_sentlab, gen_mc_sentlab
 
-def finetune_automodel(sentences, labels, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', rstate=9, ts=0.20, oom=False):
+def finetune_automodel(datasetdct, int2label, label2int, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', rstate=9, ts=0.20, oom=False):
     '''
     
     '''
-    num_lbs = len(set(labels))
-    print(Counter(labels)) 
     epochs = 10
     start = time.time()
+    num_lbs = len(list(int2label))
     print(f'\nLoading model {model_name}\n')
-    int2label=dict(zip(range(len(set(labels))), set(labels)))
-    label2int = dict(zip(set(labels), range(len(set(labels)))))
-    #print(int2label, label2int)
-    train_sents, test_sents, train_labels, test_labels = train_test_split(sentences,labels,stratify=labels, test_size=ts, random_state=rstate)
     print("Tokenizing")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     def preprocess_function(examples):
         return tokenizer(examples["text"], truncation=True, padding=True).to(dev)
-    train_dct = [{"text":text,"label":label2int[label]} for text, label in zip(train_sents, train_labels)]
-    test_dct = [{"text":text,"label":label2int[label]} for text, label in zip(test_sents, test_labels)]
-    train = Dataset.from_list(train_dct)
-    test = Dataset.from_list(test_dct)
-    tokenized_train = train.map(preprocess_function, batched=True)
-    tokenized_test = test.map(preprocess_function, batched=True)
+    tokenized_ds = datasetdct.map(preprocess_function, batched=True)
     # dont need collator if using Trainer
     #clf_metrics = evaluate.combine(["accuracy", "f1", "precision", "recall"])
     #clf_metrics = evaluate.combine(["accuracy", "f1"])
@@ -91,8 +81,8 @@ def finetune_automodel(sentences, labels, mode, model_name="sentence-transformer
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_train,
-        eval_dataset=tokenized_test,
+        train_dataset=tokenized_ds["train"],
+        eval_dataset=tokenized_ds["test"],
         processing_class=tokenizer,
         compute_metrics=calc_metrics,
         #compute_loss_func=
@@ -101,13 +91,21 @@ def finetune_automodel(sentences, labels, mode, model_name="sentence-transformer
     trainer.train()
     train_losses = [log["loss"] for log in trainer.state.log_history if "loss" in log]
     eval_losses = [log["eval_loss"] for log in trainer.state.log_history if "eval_loss" in log]
-    metric_log.append({"train_loss":train_losses})
-    metric_log.append({"eval_loss": eval_losses})
     print("Saving")
     trainer.save_model(output_dir+f"/{model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}.pt")
+    #
+    predictions = trainer.predict(tokenized_ds["holdout"])
+    # Extract the logits and labels from the predictions object
+    logits = predictions.predictions
+    labels = predictions.label_ids
+    # Use your compute_metrics function
+    metric_log.append({"train_loss":train_losses})
+    metric_log.append({"eval_loss": eval_losses})
+    metrics = calc_metrics((logits, labels))
     with open(output_dir+f"/{model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}.pt/metrics.json", "w", encoding="utf-8") as f:
         json.dump(metric_log, f, ensure_ascii=False, indent=4)
     end = time.time()
+    print(metrics)
     print(f"\nSaved {model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}.")
     print(f'\nDone in {round((end-start)/60,2)} min')
 
@@ -123,20 +121,38 @@ def main(sentences, labels, r=9):
     mc_sents, mc_labels = gen_mc_sentlab(sentences, labels, sanity_check=False)
     print(Counter(bn_labels)) 
     print(Counter(mc_labels))
-    for e in range(5,10):
+    bn_int2label=dict(zip(range(len(set(bn_labels))), set(bn_labels)))
+    bn_label2int = dict(zip(set(bn_labels), range(len(set(bn_labels)))))
+    mc_int2label=dict(zip(range(len(set(mc_labels))), set(mc_labels)))
+    mc_label2int = dict(zip(set(mc_labels), range(len(set(mc_labels)))))
+    for e in range(10):
         print(f"\nRound {e}\n")
         bn_ft_sents, bn_ho_sents, bn_ft_labels, bn_ho_labels = train_test_split(bn_sents, bn_labels, stratify=bn_labels, test_size=0.2, random_state=e)
         mc_ft_sents, mc_ho_sents, mc_ft_labels, mc_ho_labels = train_test_split(mc_sents, mc_labels, stratify=mc_labels, test_size=0.3, random_state=e)
+        #
+        bn_train_sents, bn_test_sents, bn_train_labels, bn_test_labels = train_test_split(bn_ft_sents, bn_ft_labels, stratify=bn_ft_labels, test_size=0.2, random_state=e)
+        mc_train_sents, mc_test_sents, mc_train_labels, mc_test_labels = train_test_split(mc_ft_sents, mc_ft_labels, stratify=mc_ft_labels, test_size=0.3, random_state=e)
+        #
+        bn_ds = DatasetDict({
+            "train": Dataset.from_list([{"text":text,"label":bn_label2int[label]} for text, label in zip(bn_train_sents, bn_train_labels)]),
+            "test": Dataset.from_list([{"text":text,"label":bn_label2int[label]} for text, label in zip(bn_test_sents, bn_test_labels)]),
+            "holdout": Dataset.from_list([{"text":text,"label":bn_label2int[label]} for text, label in zip(bn_ho_sents, bn_ho_labels)])
+        })
+        mc_ds = DatasetDict({
+            "train": Dataset.from_list([{"text":text,"label":mc_label2int[label]} for text, label in zip(mc_train_sents, mc_train_labels)]),
+            "test": Dataset.from_list([{"text":text,"label":mc_label2int[label]} for text, label in zip(mc_test_sents, mc_test_labels)]),
+            "holdout": Dataset.from_list([{"text":text,"label":mc_label2int[label]} for text, label in zip(mc_ho_sents, mc_ho_labels)])
+        })
         for model in models:
             torch.cuda.empty_cache()
             #try:
-            finetune_automodel(bn_ft_sents, bn_ft_labels, "bn", model_name=model, dev='cuda', rstate=e, ts=0.25)
+            finetune_automodel(bn_ds, bn_int2label, bn_label2int, "bn", model_name=model, dev='cuda', rstate=e)
             print(f"\nCompleted {model} binary model.")
             #except Exception as e:
             #    print(f"\n{model} binary model failed due to {e}")
             torch.cuda.empty_cache()
             #try:
-            finetune_automodel(mc_ft_sents,mc_ft_labels, "mc", model_name=model, dev='cuda', rstate=e, ts=0.3)
+            finetune_automodel(mc_ds, mc_int2label, mc_label2int, "mc", model_name=model, dev='cuda', rstate=e)
             print(f"\nCompleted {model} binary model.")
             #except Exception as e:
             #    print(f"\n{model} binary model failed due to {e}")
