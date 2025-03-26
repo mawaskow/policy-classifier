@@ -16,7 +16,7 @@ from sklearn.model_selection import train_test_split
 from torch import nn, Tensor
 from torch.utils.data import DataLoader
 
-from latent_embeddings_classifier import *
+from run_classifiers import encode_all_sents
 from utils import *
 from sentence_transformer import EarlyStoppingSentenceTransformer
 from sentence_transformers import SentenceTransformer
@@ -252,42 +252,6 @@ def set_seeds(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.enabled = False
-
-
-def evaluate_using_sbert(model, test_sents, test_labels, label_names, numeric_labels):
-    """
-    Evaluate an S-BERT model on a previously unseen test set, visualizing the embeddings, confusion matrix,
-    and returning. Evaluation method:
-     - Calculate cosine similarity between label and sentence embeddings
-     #A-latent-embedding-approach
-     - Includes the projection matrix approach used in https://joeddav.github.io/blog/2020/05/29/ZSL.html
-
-    """
-    # Projection matrix Z low-dim projection
-    print("Classifying sentences...")
-    subprocess.check_call(["pip", "install", "--quiet", "download", "spacy==3.0.5"])
-    subprocess.check_call(["python", "-m", "spacy", "download", "es_core_news_lg"])
-    es_nlp = spacy.load('es_core_news_lg')
-    proj_matrix = cp.asnumpy(calc_proj_matrix(
-        test_sents, 50, es_nlp, model, 0.01))
-    test_embs = encode_all_sents(test_sents, model, proj_matrix)
-    label_embs = encode_labels(label_names, model, proj_matrix)
-
-    model_preds, model_scores = calc_all_cos_similarity(
-        test_embs, label_embs, label_names)
-
-    print("Evaluating predictions...")
-    print(classification_report(test_labels, model_preds))
-    numeric_preds = labels2numeric(model_preds, label_names)
-    evaluator = ModelEvaluator(
-        label_names, y_true=numeric_labels, y_pred=numeric_preds)
-
-    evaluator.plot_confusion_matrix(color_map='Blues')
-    #visualize_embeddings_2D(np.vstack(test_embs), test_labels, tsne_perplexity=50)
-    print("Macro/Weighted Avg F1-score:", evaluator.avg_f1.tolist())
-
-    return evaluator.avg_f1.tolist()
-
 
 def evaluate_using_sklearn(clf, model, train_sents, train_labels, test_sents, test_labels, label_names):
     """

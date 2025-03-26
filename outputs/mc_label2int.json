@@ -1,0 +1,8 @@
+{
+    "Fine": 0,
+    "Supplies": 1,
+    "Technical_assistance": 2,
+    "Tax_deduction": 3,
+    "Credit": 4,
+    "Direct_payment": 5
+}

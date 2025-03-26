@@ -200,7 +200,7 @@ def mc_classification(sentences, labels, cuda=False, r_state=9, exps=1, model_na
     '''
     raps = {}
     # load model
-    dev = 'cuda' if cuda else None
+    dev = 'cuda' if cuda else 'cpu'
     print(f"Loading model {model_name}.")
     try:
         model = SentenceTransformer(model_name, device=dev) 
@@ -221,7 +221,7 @@ def mc_classification(sentences, labels, cuda=False, r_state=9, exps=1, model_na
 
 # evaluation
 
-def res_dct_to_cls_rpt(res_dct):
+def res_dct_to_cls_rpt(res_dct, int2label_dct):
     '''
     Takes a real and predicted labels dictionary and returns
     dictionary of classification reports
@@ -232,7 +232,9 @@ def res_dct_to_cls_rpt(res_dct):
     }
     for mode in list(res_dct):
         for model in list(res_dct[mode]):
-            cls_rpt[mode][model] = classification_report(res_dct[mode][model]['real'], res_dct[mode][model]['pred'], output_dict=True)
+            real = [int2label_dct[mode][res] for res in res_dct[mode][model]['real']]
+            pred = [int2label_dct[mode][pred] for pred in res_dct[mode][model]['pred']]
+            cls_rpt[mode][model] = classification_report(real, pred, output_dict=True)
     return cls_rpt
 
 def cls_rpt_to_exp_rpt(cls_rpt):
@@ -295,6 +297,14 @@ def cls_rpt_to_exp_rpt(cls_rpt):
                 exp_rpt[mode][model]["labels"][label] = {'average':np.average(label_f1s[label])}
     return exp_rpt
 
+def export_ds(sents, labels, fname):
+    ds = []
+    if len(sents) == len(labels):
+        for i in range(len(sents)):
+            ds.append({"text": sents[i], "label":labels[i]})
+    with open(output_dir+f"/{fname}", 'w', encoding="utf-8") as outfile:
+        json.dump(ds, outfile, ensure_ascii=False, indent=4)
+
 def run_experiments(sentences, labels, exps=1, cuda=False, r_state=9, scheck=False):
     # experiments vary r state of train test split
     # r state for classifier is consistent
@@ -318,6 +328,9 @@ def run_experiments(sentences, labels, exps=1, cuda=False, r_state=9, scheck=Fal
     #
     bn_sents, bn_labels = gen_bn_sentlab(sentences, labels, sanity_check=scheck)
     mc_sents, mc_labels = gen_mc_sentlab(sentences, labels, sanity_check=scheck)
+    #export_ds(bn_sents, bn_labels, "bn_19Mar.json")
+    #export_ds(mc_sents, mc_labels, "mc_19Mar.json")
+    #print("\n\n\n\nYippee!\n\n\n\n")
     stw = time.time()
     for model in models:
         for mode in ['bn', 'mc']:
