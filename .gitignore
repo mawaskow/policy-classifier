@@ -1,2 +1,4 @@
-inputs
-outputs
+outputs/models
+outputs/automodels_nofreeze
+policy_scraping/policy_scraping/outputs/forestry
+venv/*

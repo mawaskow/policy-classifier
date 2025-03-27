@@ -1,7 +1,7 @@
 from sklearn.model_selection import train_test_split
 from sklearn import svm
 from sklearn.model_selection import cross_val_score
-from sklearn.metrics import classification_report, cohen_kappa_score
+from sklearn.metrics import classification_report
 from sentence_transformers import SentenceTransformer
 from sklearn.ensemble import RandomForestClassifier
 from imblearn.over_sampling import RandomOverSampler
