@@ -132,8 +132,8 @@ def run_experiments(int2label_dct, label2int_dct, data_dir, model_dir, cuda=Fals
 def main(outfn='30Feb', cuda = False, scheck = False):
     int2label_dct = {
         "bn": {
-            0: "incentive",
-            1: "non-incentive"
+            1: "incentive",
+            0: "non-incentive"
         },
         "mc":{
             0: "Fine",
@@ -146,8 +146,8 @@ def main(outfn='30Feb', cuda = False, scheck = False):
     }
     label2int_dct = {
         "bn": {
-            "incentive": 0,
-            "non-incentive": 1
+            "incentive": 1,
+            "non-incentive": 0
         },
         "mc":{
             "Fine": 0,

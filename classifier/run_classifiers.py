@@ -252,8 +252,9 @@ def cls_rpt_to_exp_rpt(cls_rpt):
             if mode == 'mc':
                 exp_rpt[mode][model] = {
                     "accuracy": {},
-                    "macroavg-f1": {},
-                    "weightavg-f1": {},
+                    "f1-weight": {},
+                    "precision":{},
+                    "recall":{},
                     "labels": {
                         'Credit':{},
                         'Direct_payment':{},
@@ -266,8 +267,9 @@ def cls_rpt_to_exp_rpt(cls_rpt):
             else:
                 exp_rpt[mode][model]= {
                     "accuracy": {},
-                    "macroavg-f1": {},
-                    "weightavg-f1": {},
+                    "f1-weight": {},
+                    "precision":{},
+                    "recall":{},
                     "labels": {
                         'incentive':{},
                         'non-incentive':{}
@@ -276,25 +278,37 @@ def cls_rpt_to_exp_rpt(cls_rpt):
             accuracy = []
             macrof1 = []
             wghtf1=[]
+            precision = []
+            recall = []
             label_f1s = {}
+            label_prec = {}
+            label_recs = {}
             for label in list(exp_rpt[mode][model]["labels"]):
                 label_f1s[label]=[]
+                label_prec[label]=[]
+                label_recs[label]=[]
             try:
                 accuracy.append(cls_rpt[mode][model]['accuracy'])
-                macrof1.append(cls_rpt[mode][model]['macro avg']["f1-score"])
                 wghtf1.append(cls_rpt[mode][model]['weighted avg']["f1-score"])
+                precision.append(cls_rpt[mode][model]['weighted avg']["precision"])
+                recall.append(cls_rpt[mode][model]['weighted avg']["recall"])
             except:
                 print(f'\nCould not add accuracy from {mode} {model}')
             for label in list(exp_rpt[mode][model]["labels"]):
                 try:
                     label_f1s[label].append(cls_rpt[mode][model][label]["f1-score"])
+                    label_prec[label].append(cls_rpt[mode][model][label]["precision"])
+                    label_recs[label].append(cls_rpt[mode][model][label]["recall"])
                 except:
                     print(f'\nCould not add F1 score for {label} in {mode} {model}')
-            exp_rpt[mode][model]['accuracy'] = {'average':np.average(accuracy)}
-            exp_rpt[mode][model]['macroavg-f1'] = {'average':np.average(macrof1)}
-            exp_rpt[mode][model]['weightavg-f1'] = {'average':np.average(wghtf1)}
+            exp_rpt[mode][model]['accuracy'] = np.average(accuracy)
+            exp_rpt[mode][model]['f1-weight'] = np.average(wghtf1)
+            exp_rpt[mode][model]['precision'] = np.average(precision)
+            exp_rpt[mode][model]['recall'] = np.average(recall)
             for label in list(exp_rpt[mode][model]["labels"]):
-                exp_rpt[mode][model]["labels"][label] = {'average':np.average(label_f1s[label])}
+                exp_rpt[mode][model]["labels"][label] = {'f1':np.average(label_f1s[label]),
+                                                         "precision":np.average(label_prec[label]),
+                                                         "recall":np.average(label_recs[label])}
     return exp_rpt
 
 def export_ds(sents, labels, fname):

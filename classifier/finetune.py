@@ -22,6 +22,8 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Data
 import evaluate
 from datasets import Dataset, DatasetDict
 from collections import Counter
+from peft import LoraConfig, get_peft_model
+from sklearn.utils import shuffle
 
 cwd = os.getcwd()
 output_dir = cwd+"/outputs/automodels_nofreeze"
@@ -30,13 +32,22 @@ input_dir = cwd+"/inputs"
 #from run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab, gen_bn_sentlab, gen_mc_sentlab
 from classifier.run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab, gen_bn_sentlab, gen_mc_sentlab
 
-def finetune_automodel(datasetdct, int2label, label2int, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', rstate=9, output_dir=f"{os.getcwd()}/outputs/models", only_head=False):
+def finetune_roberta(datasetdct, int2label, label2int, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', output_dir=f"{os.getcwd()}/outputs/models", hyperparams=False, oversampling=False):
     '''
     '''
-    epochs = 10
+    if not hyperparams:
+        hyperparams = {
+            "epochs":10, 
+            "r":9,
+            "lr":2e-5,
+            "batch_size":16
+            }
+    epochs = hyperparams["epochs"]
+    rstate = hyperparams["r"]
+    lr = hyperparams["lr"]
+    batch_size = hyperparams["batch_size"]
     start = time.time()
     num_lbs = len(list(int2label))
-    jh = ""
     print(f'\nLoading model {model_name}\n')
     print("Tokenizing")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -45,42 +56,43 @@ def finetune_automodel(datasetdct, int2label, label2int, mode, model_name="sente
     tokenized_ds = datasetdct.map(preprocess_function, batched=True)
     accuracy = evaluate.load("accuracy")
     f1 = evaluate.load("f1")
+    # recall = evaluate.load("recall")
     metric_log = []
     def calc_metrics(pred):
         predictions, labels = pred
         predictions = np.argmax(predictions, axis=1)
-        #metrics = clf_metrics.compute(predictions=predictions, references=labels)
         metrics = {
             "accuracy": accuracy.compute(predictions=predictions, references=labels)["accuracy"],
-            "f1": f1.compute(predictions=predictions, references=labels, average="weighted" if mode=="mc" else "binary")["f1"]
+            "f1": f1.compute(predictions=predictions, references=labels, average="weighted" if mode=="mc" else "binary")["f1"],
+            # "recall"
         }
         metric_log.append(metrics)
         return metrics
     print("Loading model")
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_lbs,id2label=int2label, label2id=label2int).to(dev)
-    if only_head:
-    ## freeze base model layers to only train classification head then unfreeze "pooler" layers
-        for param in model.base_model.parameters():
-            param.requires_grad = False
-        jh = "onlyhead"
-    # https://huggingface.co/transformers/v4.2.2/training.html
-    # apply weight decay to all parameters other than bias and layer normalization terms:
-    #no_decay = ['bias', 'LayerNorm.weight']
-    #optimizer_grouped_parameters = [
-    #    {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-    #    {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-    #]
-    #optimizer = AdamW(optimizer_grouped_parameters, lr=1e-5)
+    if oversampling:
+        # sampling_strategy='minority'?
+        # or fine-tune the RandomOverSampler?
+        # https://imbalanced-learn.org/stable/references/generated/imblearn.over_sampling.RandomOverSampler.html
+        # shrinkage?
+        train_sents = tokenized_ds["train"]["text"]
+        train_labels = tokenized_ds["train"]["label"]
+        ros = RandomOverSampler(sampling_strategy='auto', random_state=rstate)
+        train_texts_resampled, train_labels_resampled = ros.fit_resample(np.array(train_sents).reshape(-1, 1), np.array(train_labels))
+        train_texts_resampled, train_labels_resampled = shuffle(train_texts_resampled, train_labels_resampled, random_state=rstate)
+        tokenized_resampled_ds = tokenizer(list(train_texts_resampled.flatten()), padding=True, truncation=True, return_tensors="pt")
+        tokenized_resampled_ds["label"] = torch.tensor(train_labels_resampled)
+        tokenized_ds["train"] = tokenized_resampled_ds
     training_args = TrainingArguments(
         output_dir=output_dir,
-        learning_rate=2e-5,
-        per_device_train_batch_size=16,
-        per_device_eval_batch_size=16,
-        seed=rstate,
+        learning_rate=lr,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
+        seed=9,
         num_train_epochs=epochs,
         weight_decay=0.01,
-        eval_strategy="epoch",
-        save_strategy="epoch",
+        eval_strategy="steps",
+        save_strategy="best",
         optim="adamw_torch",
         load_best_model_at_end=True
     )
@@ -100,7 +112,7 @@ def finetune_automodel(datasetdct, int2label, label2int, mode, model_name="sente
     train_losses = [log["loss"] for log in trainer.state.log_history if "loss" in log]
     eval_losses = [log["eval_loss"] for log in trainer.state.log_history if "eval_loss" in log]
     print("Saving")
-    trainer.save_model(output_dir+f"/{model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}{jh}.pt")
+    trainer.save_model(output_dir+f"/{model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}.pt")
     #
     predictions = trainer.predict(tokenized_ds["holdout"])
     # Extract the logits and labels from the predictions object
@@ -110,11 +122,11 @@ def finetune_automodel(datasetdct, int2label, label2int, mode, model_name="sente
     metric_log.append({"train_loss":train_losses})
     metric_log.append({"eval_loss": eval_losses})
     metrics = calc_metrics((logits, labels))
-    with open(output_dir+f"/{model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}{jh}.pt/metrics.json", "w", encoding="utf-8") as f:
+    with open(output_dir+f"/{model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}.pt/metrics.json", "w", encoding="utf-8") as f:
         json.dump(metric_log, f, ensure_ascii=False, indent=4)
     end = time.time()
     print(metrics)
-    print(f"\nSaved {model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}{jh}.")
+    print(f"\nSaved {model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}.")
     print(f'\nDone in {round((end-start)/60,2)} min')
 
 def create_labelintdcts(bn_labels, mc_labels, save=False, output_dir=f"{os.getcwd()}/outputs/models"):
@@ -152,8 +164,8 @@ def load_labelintdcts():
     '''
     int2label_dct = {
         "bn": {
-            0: "incentive",
-            1: "non-incentive"
+            1: "incentive",
+            0: "non-incentive"
         },
         "mc":{
             0: "Fine",
@@ -166,8 +178,8 @@ def load_labelintdcts():
     }
     label2int_dct = {
         "bn": {
-            "incentive": 0,
-            "non-incentive": 1
+            "incentive": 1,
+            "non-incentive": 0
         },
         "mc":{
             "Fine": 0,
@@ -237,13 +249,13 @@ def main():
         for model in models:
             torch.cuda.empty_cache()
             #try:
-            finetune_automodel(bn_ds, int2label_dct["bn"], label2int_dct["bn"], "bn", model_name=model, dev='cuda', rstate=e)
+            finetune_roberta(bn_ds, int2label_dct["bn"], label2int_dct["bn"], "bn", model_name=model, dev='cuda', rstate=e)
             print(f"\nCompleted {model} binary model.")
             #except Exception as e:
             #    print(f"\n{model} binary model failed due to {e}")
             torch.cuda.empty_cache()
             #try:
-            finetune_automodel(mc_ds, int2label_dct["mc"], label2int_dct["mc"], "mc", model_name=model, dev='cuda', rstate=e)
+            finetune_roberta(mc_ds, int2label_dct["mc"], label2int_dct["mc"], "mc", model_name=model, dev='cuda', rstate=e)
             print(f"\nCompleted {model} multiclass model.")
             #except Exception as e:
             #    print(f"\n{model} multiclass model failed due to {e}")
