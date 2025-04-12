@@ -1,0 +1,17 @@
+{
+    "bn":{
+        "batch_size": 16,
+        "epochs": 10,
+        "loss": "default",
+        "oversampling": "auto",
+        "lr":5e-6,
+        "weight_decay": 0.01,
+        "eval_strategy":"epoch",
+        "save_strategy":"best",
+        "logging_strategy":"epoch",
+        "optim":"adamw_torch",
+        "load_best_model_at_end":true,
+        "metric_for_best_model": "loss"
+    },
+    "mc":{}
+}
