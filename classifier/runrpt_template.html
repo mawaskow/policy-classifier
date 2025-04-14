@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset='utf-8'>
+    <!--bootstrap-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+    <style>
+        body {background-color: lightgray;}
+        h1, h2, h3, h4, p    {color: black;
+                font-family:'Courier New', Courier, monospace}
+        h1, h2, h3, h4 {padding-top:20px}
+        table {background-color: white;}
+        div.info {border-radius: 20px;
+                background-color: white;
+                padding: 10px;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="col-6">
+            <div class="jumbotron">
+                <h1 class="display-4">Training Run Report</h1>
+                <h2>${run_name} ${mode}</h2>
+                <p>Predictions via ${cls_mode}</p>
+            </div>
+            <div class="container">
+                <h3>Run Details</h3>
+                <div class="info">
+                    <li>Batch Size: ${meta_dct[mode]["batch_size"]}</li>
+                    <li>Learning Rate: ${meta_dct[mode]["lr"]}</li>
+                    <li>Epochs: ${meta_dct[mode]["epochs"]}</li>
+                    <li>Loss: ${meta_dct[mode]["loss"]}</li>
+                    <li>Oversampling: ${meta_dct[mode]["oversampling"]}</li>
+                </div>
+            </div>
+            <div class="container">
+                <h3>Overall Performance</h3>
+                <div class="info">
+                    ${overall_results}
+                </div>
+            </div>
+            <div class="container">
+                <h3>Label-Level Performance</h3>
+                <div class="info">
+                    ${label_results_html}
+                </div>
+            </div>
+        </div>
+        <div class="col-9 d-flex justify-self-center">
+            <div class="container">
+                <h3>Figures</h3>
+                <div class="info justify-content-center">
+                    ${figures_display_html}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
