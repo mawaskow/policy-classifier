@@ -3,9 +3,24 @@ import json
 import os
 import glob, regex
 import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, ConfusionMatrixDisplay
 import pandas as pd
 from tqdm import tqdm
+import torch
+from datasets import DatasetDict
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import gc
+import numpy as np
+from sklearn import svm
+from sklearn.ensemble import RandomForestClassifier
+from sentence_transformers import SentenceTransformer
+
+def encode_all_sents(all_sents, sbert_model):
+    '''
+    modified from previous repository's latent_embeddings_classifier.py
+    '''
+    stacked = np.vstack([sbert_model.encode(sent) for sent in tqdm(all_sents)])
+    return [torch.from_numpy(element).reshape((1, element.shape[0])) for element in stacked]
 
 class ModelReport:
     def __init__(self, model_dir, cls_mode="model"):
@@ -16,13 +31,14 @@ class ModelReport:
         self.metrics = self.load_metrics()
         self.config = self.load_config()
         self.id2label = self.config["id2label"]
+        self.label2id = self.config["label2id"]
         self.real = None
         self.predicted = None
-        name_dct = {
+        self.name_dct = {
             "paraphrase-xlm-r-multilingual-v1":"bert"
         }
         model_type = self.model_name.split("_")[0]
-        self.callname = self.model_name.replace(model_type, name_dct[model_type])
+        self.callname = self.model_name.replace(model_type, self.name_dct[model_type])
         self.mode = self.callname.split("_")[1]
         self.r = self.callname.split("_")[-1][1:]
         self.cls_report = {}
@@ -35,6 +51,56 @@ class ModelReport:
         config_path = self.model_dir+'/config.json'
         with open(config_path) as f:
             return json.load(f)
+    def calculate_randps(self, ds_addr, eval_batch=32):
+        torch.cuda.empty_cache()
+        dev = 'cuda' if torch.cuda.is_available() else None
+        dsdct = DatasetDict.load_from_disk(ds_addr)
+        sentences = dsdct["holdout"]["text"]
+        labels = dsdct["holdout"]["label"]
+        prds_lst = []
+        if self.cls_mode == "model":
+            num_lbs = len(set(labels))
+            print("Loading tokenizer")
+            tokenizer = AutoTokenizer.from_pretrained(self.model_dir)
+            print("Loading model")
+            model = AutoModelForSequenceClassification.from_pretrained(self.model_dir, num_labels=num_lbs,id2label=self.id2label, label2id=self.label2id).to(dev)
+            model.eval()
+            print("Running model")
+            for i in tqdm(range(0, len(sentences),eval_batch)):
+                bsents = sentences[i : i + eval_batch]
+                test_embs = tokenizer(bsents, truncation=True, padding=True, return_tensors="pt").to(dev)
+                logits = model(**test_embs).logits
+                prds = torch.max(logits,1).indices
+                prds_lst.extend(prds.tolist())
+                del test_embs, logits
+                torch.cuda.empty_cache()
+                gc.collect()
+            print("Freeing memory")
+            del model
+            torch.cuda.empty_cache()
+            gc.collect()
+        elif self.cls_mode in ["svm","rf"]:
+            train_sents = dsdct["train"]["text"]+dsdct["test"]["text"]
+            train_labels = dsdct["train"]["label"]+dsdct["test"]["label"]
+            model = SentenceTransformer(self.model_dir, device=dev)
+            train_embs = encode_all_sents(train_sents, model)
+            print("Encoding test sentences.")
+            test_embs = encode_all_sents(sentences, model)
+            if self.cls_mode == "svm":
+                clf = svm.SVC(gamma=0.001, C=100., random_state=int(self.r))
+                clf.fit(np.vstack(train_embs), train_labels)
+                prds_lst = [int(clf.predict(sent_emb)[0]) for sent_emb in test_embs]
+            else:
+                clf = RandomForestClassifier(n_estimators=100, max_depth=3, random_state=int(self.r))
+                clf.fit(np.vstack(train_embs), train_labels)
+                prds_lst = [int(clf.predict(sent_emb)[0]) for sent_emb in test_embs]
+            del model
+        torch.cuda.empty_cache()
+        gc.collect()
+        self.real = labels
+        self.pred = prds_lst
+        with open(self.model_dir+f"/randp_{self.cls_mode}.json", "w", encoding="utf-8") as f:
+            json.dump({"real":labels,"pred":prds_lst}, f, ensure_ascii=False, indent=4)
     def load_randps(self, real, pred):
         self.real = real
         self.pred = pred
@@ -46,6 +112,23 @@ class ModelReport:
         for label in list(self.id2label):
             self.cls_report["labels"][label] = cls_report[label]
         self.cm = confusion_matrix(self.real, self.pred, normalize="true")
+        self.cls_report["cm"] = self.cm
+        if self.mode == "mc":
+            self.cls_report["custom_acc"] = {}
+            real_ar = np.array(self.real)
+            pred_ar = np.array(self.pred)
+            mask = real_ar != 3
+            notd_real = real_ar[mask]
+            notd_pred = pred_ar[mask]
+            acc_no_td = accuracy_score(notd_real, notd_pred)
+            self.cls_report["custom_acc"]["without_td"] = acc_no_td
+            #
+            td_mask = real_ar == 3
+            td_real = real_ar[td_mask]
+            td_pred = pred_ar[td_mask]
+            acc_td = accuracy_score(td_real, td_pred)
+            self.cls_report["custom_acc"]["only_td"] = acc_td
+            #print(self.cls_report["custom_acc"])
     def plot_cfmtx(self):
         disp = ConfusionMatrixDisplay(confusion_matrix=self.cm)
         fig, ax = plt.subplots(figsize=(4, 4))
@@ -76,20 +159,27 @@ class RunReporter:
         self.id2label = {}
         self.overall_df = None
         self.label_df_dct = None
-    def load_model_reports(self, cls_mode):
+        self.eval_batch = 32
+        self.custom_acc_df = None
+    def load_model_reports(self, cls_mode, eval_batch=32):
         self.cls_mode = cls_mode
         self.model_reports = []
+        self.eval_batch = eval_batch
         for model in tqdm(self.models):
             report = ModelReport(model, self.cls_mode)
             if report.mode == self.mode:
                 report.load_metrics()
                 report.load_config()
-                rnp_json = glob.glob(self.run_dir+f"/randp_*{report.cls_mode}.json")[0]
-                with open(rnp_json) as f:
-                    self.rnp = json.load(f)
-                real = self.rnp[report.mode][report.callname]["real"]
-                pred = self.rnp[report.mode][report.callname]["pred"]
-                report.load_randps(real, pred)
+                randp_json = report.model_dir+f"/randp_{report.cls_mode}.json"
+                if not os.path.exists(randp_json):
+                    report.calculate_randps(self.run_dir+f"/../../inputs/ds_{report.r}_{report.mode}", self.eval_batch)
+                else:
+                    try:
+                        with open(randp_json, "r", encoding="utf-8") as f:
+                            randp = json.load(f)
+                        report.load_randps(randp["real"], randp["pred"])
+                    except json.JSONDecodeError as e:
+                        report.calculate_randps(self.run_dir+f"/../../inputs/ds_{report.r}_{report.mode}", self.eval_batch)
                 report.calc_metrics()
                 report.plot_cfmtx()
                 self.model_reports.append(report)
@@ -97,9 +187,12 @@ class RunReporter:
     def create_result_dfs(self):
         overall_dct = {}
         label_coll = {str(i):{exp:{} for exp in self.exps} for i in range(2 if self.mode=="bn" else 6)}
+        cust_acc_dct = {}
         for report in self.model_reports:
             if report.mode == self.mode:
                 overall_dct[report.r]=[report.cls_report["overall"][key] for key in list(report.cls_report["overall"])]
+                if self.mode =="mc":
+                    cust_acc_dct[report.r] = [report.cls_report["custom_acc"][key] for key in list(report.cls_report["custom_acc"])]
                 for label in list(report.cls_report["labels"]):
                     label_coll[label][report.r]=[report.cls_report["labels"][label][key] for key in list(report.cls_report["labels"][label])]
         #
@@ -114,6 +207,10 @@ class RunReporter:
             tempdf.loc["Average"] = tempdf.mean(numeric_only=True)
             label_dfdct[label] = tempdf.drop('support', axis=1)
         self.label_df_dct = label_dfdct
+        #
+        cust_acc_df = pd.DataFrame.from_dict(cust_acc_dct, orient='index', columns=["acc_wo_taxded", "taxded_acc"])
+        cust_acc_df.loc['Average'] = cust_acc_df.mean(numeric_only=True)
+        self.custom_acc_df = cust_acc_df
     def create_label_df_html(self):
         labels_html = ""
         for label in list(self.label_df_dct):
@@ -136,6 +233,7 @@ class RunReporter:
                         meta_dct =self.meta_dct,
                         overall_results = self.overall_df.style.set_table_attributes('class="table"').format(precision=3).to_html(),
                         label_results_html = self.create_label_df_html(),
+                        custom_acc_res = self.custom_acc_df.style.set_table_attributes('class="table"').format(precision=3).to_html() if self.mode =="mc" else "",
                         figures_display_html = self.create_figure_display_html())
         with open(os.path.join(self.run_dir, f"model_display_{self.run}_{self.mode}_{self.cls_mode}.html"),"w") as f:
             f.write(T)
@@ -149,10 +247,10 @@ class MetaRunReporter:
         self.run_collection = {}
         self.overall_df = None
         self.label_df_dct = None
+        self.custom_acc_df = None
         self.id2label = {}
     def process_runs(self, report_temp = False):
         run_collection = {}
-        #dir_names = glob.glob(self.meta_run_dir+"/*")
         dir_names = glob.glob(self.meta_run_dir+f"/*{self.mode}")
         for dn in tqdm(dir_names):
             if os.path.isdir(dn):
@@ -167,7 +265,7 @@ class MetaRunReporter:
                     if report_temp:
                         rr.make_report(report_temp)
                 except Exception as e:
-                    print(f"Could not do {rr.run} {self.mode}", dn.split("/")[-1], "due to", e)
+                    print(f"Could not load {rr.run} {self.mode}", dn.split("/")[-1], "due to", e)
                     pass
         self.run_collection = run_collection
     def generate_overall_df(self):
@@ -187,6 +285,14 @@ class MetaRunReporter:
                 for metric in report_df_dct[label].columns:
                     label_dfdct[label].loc[rreport.run, metric] = report_df_dct[label][metric]["Average"]
         self.label_df_dct = label_dfdct
+    def generate_custom_acc_df(self):
+        custom_acc_df = pd.DataFrame(index = list(self.run_collection), columns=["acc_wo_taxded", "taxded_acc"])
+        for rn in list(self.run_collection):
+            rreport = self.run_collection[rn]
+            report_df = rreport.custom_acc_df
+            for metric in report_df.columns:
+                custom_acc_df.loc[rreport.run, metric]=report_df[metric]["Average"]
+        self.custom_acc_df = custom_acc_df
     def create_label_df_html(self):
         labels_html = ""
         for label in list(self.label_df_dct):
@@ -199,48 +305,37 @@ class MetaRunReporter:
                         cls_mode=self.cls_mode,
                         overall_results = self.overall_df.style.set_table_attributes('class="table"').format(precision=3).to_html(),
                         label_results_html =self.create_label_df_html(),
+                        custom_acc_res = self.custom_acc_df.style.set_table_attributes('class="table"').format(precision=3).to_html() if self.mode =="mc" else "",
                         figures_display_html="None")
         with open(os.path.join(self.meta_run_dir, f"MetaDisplay_{self.mode}_{self.cls_mode}.html"),"w") as f:
             f.write(T)
         return None
+    
+def create_run_report(run_dir, mode, cls_mode):
+    rr = RunReporter(run_dir, mode)
+    rr.load_model_reports(cls_mode)# or "svm"
+    rr.create_result_dfs()
+    rr.make_report("./runrpt_template.html")
+
+def create_meta_report(meta_dir, mode, cls_mode):
+    mrr = MetaRunReporter(meta_dir, mode, cls_mode)
+    mrr.process_runs("./runrpt_template.html")
+    mrr.generate_overall_df()
+    mrr.generate_label_df()
+    if mode =="mc":
+        mrr.generate_custom_acc_df()
+    mrr.make_report("./meta_runrpt_template.html")
 
 if __name__ == "__main__":
     cwd = os.getcwd()
     odir = cwd+"/../outputs"
+    idir = cwd+"/../inputs"
     '''
-    dir_names = glob.glob(odir+"/*")
-    #dir_names = ['.\\fting_G_A_again', '.\\fting_H_0CELwght', '.\\fting_I_D_again', '.\\fting_J_wghtCEL3', '.\\fting_K_lr1e5_wght', '.\\fting_L_oversamplingauto', '.\\fting_M_os_lr2e6', '.\\fting_N_os_bnlr2e6', '.\\fting_O_bn_5e6']
-    #dir_names = ['.\\fting_M_os_lr2e6']
-    for dn in dir_names:
-        print("\n",dn.split("/")[-1])
-        #dn = odir+"/"+dn
-        rr = RunReporter(dn)
-        #
-        try:
-            rr.load_model_reports("model")# or "svm"
-            rr.create_result_dfs("bn")
-            rr.make_report(cwd+"/runrpt_template.html", "bn")
-        except Exception as e:
-            print("Could not do BN", dn.split("/")[-1], "due to", e)
-            pass
-        #
-        try:
-            rr.load_model_reports("model")# or "svm"
-            rr.create_result_dfs("mc")
-            rr.make_report(cwd+"/runrpt_template.html", "mc")
-        except Exception as e:
-            print("Could not do MC", dn.split("/")[-1], "due to", e)
-            pass
+    create_run_report(odir+"/fting_A_bn", "bn", "rf")
+    create_run_report(odir+"/fting_B_mc", "mc", "rf")
+
     '''
-    for i in ["bn", "mc"]:
-        for j in ["model", "svm"]:
-            mrr = MetaRunReporter(odir, i, j)
-            mrr.process_runs(cwd+"/runrpt_template.html")
-            mrr.generate_overall_df()
-            #print(mrr.overall_df)
-            mrr.generate_label_df()
-            #for label in list(mrr.label_df_dct):
-            #    print("\n", label)
-            #    print(mrr.label_df_dct[label])
-            mrr.make_report(cwd+"/meta_runrpt_template.html")
-    print("Done.")
+    for mode in ["bn", "mc"]:#
+        for cls_mode in ["rf"]:#"model", "svm"
+            create_meta_report(odir, mode, cls_mode)
+    

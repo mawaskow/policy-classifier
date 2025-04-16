@@ -6,6 +6,7 @@ from populate_corpora.data_cleaning import dcno_to_sentlab, group_duplicates, re
 #from data_cleaning import dcno_to_sentlab, group_duplicates, remove_duplicates, gen_mc_sentlab, gen_bn_lists
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 from collections import Counter
+import numpy as np
 
 def label_dct(djson):
   rev_lib = {}

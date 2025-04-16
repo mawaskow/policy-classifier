@@ -32,18 +32,18 @@
                     ${overall_results}
                 </div>
             </div>
+            % if mode == "mc":
+                <div class="container">
+                    <h3>Custom Accuracy Calculations</h3>
+                    <div class="info">
+                        ${custom_acc_res}
+                    </div>
+                </div>
+            % endif
             <div class="container">
                 <h3>Label-Level Performance</h3>
                 <div class="info">
                     ${label_results_html}
-                </div>
-            </div>
-        </div>
-        <div class="col-9 d-flex justify-self-center">
-            <div class="container">
-                <h3>Figures</h3>
-                <div class="info justify-content-center">
-                    ${figures_display_html}
                 </div>
             </div>
         </div>
