@@ -160,12 +160,12 @@ def create_labelintdcts(bn_labels, mc_labels, save=False, output_dir=f"{os.getcw
 
 def load_labelintdcts():
     '''
-    Loads the int2label and label2int dictionaries, each containing the respctive dictionary under mode type "bn" or "mc"
+    Loads the int2label and label2int dictionaries, each containing the respctive dictionary under mode type "bn", "mc", or "om"
     '''
     int2label_dct = {
         "bn": {
-            1: "incentive",
-            0: "non-incentive"
+            0: "non-incentive",
+            1: "incentive"
         },
         "mc":{
             0: "Fine",
@@ -174,12 +174,21 @@ def load_labelintdcts():
             3: "Tax_deduction",
             4: "Credit",
             5: "Direct_payment"
+        },
+        "om":{
+            0: "Non-Incentive",
+            1: "Fine",
+            2: "Supplies",
+            3: "Technical_assistance",
+            4: "Tax_deduction",
+            5: "Credit",
+            6: "Direct_payment"
         }
     }
     label2int_dct = {
         "bn": {
-            "incentive": 1,
-            "non-incentive": 0
+            "non-incentive": 0,
+            "incentive": 1
         },
         "mc":{
             "Fine": 0,
@@ -188,6 +197,15 @@ def load_labelintdcts():
             "Tax_deduction": 3,
             "Credit": 4,
             "Direct_payment": 5
+        },
+        "om":{
+            "Non-Incentive": 0,
+            "Fine": 1,
+            "Supplies": 2,
+            "Technical_assistance": 3,
+            "Tax_deduction": 4,
+            "Credit": 5,
+            "Direct_payment": 6
         }
     }
     return int2label_dct, label2int_dct
@@ -229,6 +247,30 @@ def create_dsdict(sentences, labels, label2int_dct, amt=range(10), save=False, o
             print(f"Saved ds_{e}_bn")
             mc_ds.save_to_disk(mc_path)
             print(f"Saved ds_{e}_mc")
+    return None
+
+def create_om_dsdict(sentences, labels, label2int_dct, amt=range(10), save=False, output_dir=f"{os.getcwd()}/outputs/models"):
+    '''
+    Create and save DatasetDicts containing train, test, and holdout sets.
+    60:20:20
+    '''
+    for e in amt:
+        print(f"\nRound {e}\n")
+        ft_sents, ho_sents, ft_labels, ho_labels = train_test_split(sentences, labels, stratify=labels, test_size=0.2, random_state=e)
+        train_sents, test_sents, train_labels, test_labels = train_test_split(ft_sents, ft_labels, stratify=ft_labels, test_size=0.25, random_state=e)
+        #
+        ds = DatasetDict({
+            "train": Dataset.from_list([{"text":text,"label":label2int_dct["om"][label]} for text, label in zip(train_sents, train_labels)]),
+            "test": Dataset.from_list([{"text":text,"label":label2int_dct["om"][label]} for text, label in zip(test_sents, test_labels)]),
+            "holdout": Dataset.from_list([{"text":text,"label":label2int_dct["om"][label]} for text, label in zip(ho_sents, ho_labels)])
+        })
+        ############
+        if save:
+            path = output_dir+f"/ds_{e}_om"
+            if not os.path.exists(path):
+                os.makedirs(path)
+            ds.save_to_disk(path)
+            print(f"Saved ds_{e}_om")
     return None
 
 def main():

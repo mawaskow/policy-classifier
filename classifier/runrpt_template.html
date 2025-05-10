@@ -39,7 +39,7 @@
                     ${overall_results}
                 </div>
             </div>
-            % if mode == "mc":
+            % if mode in ["mc", "om"]:
                 <div class="container">
                     <h3>Custom Accuracy Calculations</h3>
                     <div class="info">
@@ -52,6 +52,9 @@
                 <div class="info">
                     ${label_results_html}
                 </div>
+            </div>
+            <div class="container">
+                ${om2bnmc}
             </div>
         </div>
         <div class="col-9 d-flex justify-self-center">

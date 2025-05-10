@@ -42,10 +42,7 @@ class GovIEForestSpider(BaseSpider):
         yield scrapy.Request(url, self.parse_dept)
 
     def parse_dept(self, response):
-        # gets links to departments from policies landing page
-        results_sel = response.selector.xpath('//div[contains(@class, "reboot-content")]//ul')
         # points links to the publications tab of each department
-        #dept_hrefs = [link.attrib["href"]+"latest/" for link in results_sel.xpath('.//a')]
         depts_of_int = ["268a7-agriculture-and-food/","d7a12b-climate-action-and-environment/","d5adb8-community-supports/", "b2a3c-food-vision-2030-a-world-leader-in-sustainable-food-systems/", "39e5f9-natural-resources/", "ac9ee6-action-plan-for-rural-development/"]
         dept_hrefs = ["https://www.gov.ie/en/policy/"+link+"latest/" for link in depts_of_int]
         search_lnks = []
