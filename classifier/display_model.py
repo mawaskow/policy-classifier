@@ -147,7 +147,7 @@ class ModelReport:
         real_mc = []
         pred_mc = []
         for i in range(len(real_ar)):
-            if real_ar[i]!=0 and pred_ar[i]!=0:
+            if real_ar[i]!=0:
                 real_mc.append(real_ar[i])
                 pred_mc.append(pred_ar[i])
         #bn
@@ -185,6 +185,9 @@ class ModelReport:
         td_real = real_mc_ar[td_mask]
         td_pred = pred_mc_ar[td_mask]
         acc_td = accuracy_score(td_real, td_pred)
+        # handle nan
+        if acc_td!=acc_td:
+            acc_td = 0
         self.om_report["mc"]["custom_acc"]["only_td"] = acc_td
     def plot_cfmtx(self):
         fs = 4 if self.mode=="bn" else 6 if self.mode=="mc" else 7
@@ -244,7 +247,7 @@ class ModelReport:
         #
         fs = len(self.om_mc_lbs)
         #labels = ["Fine","Supplies","Technical_assistance","Tax_deduction","Credit","Direct_payment"]
-        labels = [self.id2label[str(i)] for i in self.om_mc_lbs]
+        labels = [self.id2label[str(i)] for i in range(7)]#self.om_mc_lbs]
         try:
             disp = ConfusionMatrixDisplay(confusion_matrix=self.om_report["mc"]["cm"], display_labels=labels)
             tick_marks = np.arange(len(labels))
@@ -258,7 +261,7 @@ class ModelReport:
             fig.savefig(plot_path, bbox_inches='tight')
             plt.close(fig)
         except Exception as e:
-            print(f"Couldn't make confusion matrix display for {self.om_report['mc']['cm']}")
+            print(f"Couldn't make confusion matrix display for {self.om_report['mc']['cm']} due to {e}")
             pass
         return plot_path
     def plot_validation_loss(self):
@@ -335,7 +338,6 @@ class RunReporter:
         for report in self.model_reports:
             if report.mode == self.mode:
                 overall_dct[report.r]=[report.cls_report["overall"][key] for key in list(report.cls_report["overall"])]
-                print(report.val_loss)
                 overall_dct[report.r].append(min(report.val_loss))
                 if self.mode in ["mc", "om"]:
                     cust_acc_dct[report.r] = [report.cls_report["custom_acc"][key] for key in list(report.cls_report["custom_acc"])]
@@ -364,8 +366,8 @@ class RunReporter:
         cust_acc_df.loc['SD'] = cust_acc_df.std(skipna=True, numeric_only=True)
         self.custom_acc_df = cust_acc_df
     def create_result_dfs_om2bnmc(self):
-        omds_dct = {"bn":{}, "mc":{}}
         self.om_df_dct = {"bn":{}, "mc":{}}
+        omds_dct = {"bn":{}, "mc":{}}
         # bn
         # get stats
         label_coll = {str(i):{exp:{} for exp in self.exps} for i in range(2)}
@@ -380,7 +382,6 @@ class RunReporter:
         overall_df = pd.DataFrame.from_dict(omds_dct["bn"], orient='index', columns=["precision", "recall", "f1-score", "support", "accuracy"])
         #print("\n"*5)
         #print(overall_df)
-        #print("\n"*5)
         overall_df.loc['Average'] = overall_df.mean(skipna=True, numeric_only=True)
         overall_df.loc['SD'] = overall_df.std(skipna=True, numeric_only=True)
         self.om_df_dct["bn"]["overall"] = overall_df.drop('support', axis=1)
@@ -393,6 +394,10 @@ class RunReporter:
             tempdf.loc["SD"] = tempdf.std(skipna=True, numeric_only=True)
             label_dfdct[label] = tempdf.drop('support', axis=1)
         self.om_df_dct["bn"]["label_df_dct"] = label_dfdct
+        #print("\n"*5)
+        #for i in list(label_dfdct):
+        #    print("\n",i)
+        #    print(label_dfdct[i])
         ####
         #mc
         # get stats
@@ -411,6 +416,8 @@ class RunReporter:
         overall_df.loc['Average'] = overall_df.mean(skipna=True, numeric_only=True)
         overall_df.loc['SD'] = overall_df.std(skipna=True, numeric_only=True)
         self.om_df_dct["mc"]["overall"] = overall_df.drop('support', axis=1)
+        #print("\n"*5)
+        #print(overall_df)
         # label specific
         label_dfdct = {}
         for label in list(label_coll):
@@ -420,6 +427,10 @@ class RunReporter:
             tempdf.loc["SD"] = tempdf.std(skipna=True, numeric_only=True)
             label_dfdct[label] = tempdf.drop('support', axis=1)
         self.om_df_dct["mc"]["label_df_dct"] = label_dfdct
+        #print("\n"*5)
+        #for i in list(label_dfdct):
+        #    print("\n",i)
+        #    print(label_dfdct[i])
         # custom acc
         cust_acc_df = pd.DataFrame.from_dict(cust_acc_dct, orient='index', columns=["acc_wo_taxded", "taxded_acc"])
         cust_acc_df.loc['Average'] = cust_acc_df.mean(skipna=True, numeric_only=True)
@@ -443,8 +454,9 @@ class RunReporter:
     def create_om2bnmc_df_html(self):
         om2bnmc_html = "<h4> Binary Aggregation </h4>"
         om2bnmc_html += self.om_df_dct["bn"]["overall"].style.set_table_attributes('class="table"').format(precision=3).to_html()
+        temp = {"0":"Non-Incentive","1":"Incentive"}
         for label in list(self.om_df_dct["bn"]["label_df_dct"]):
-            om2bnmc_html += f"<h5>{self.id2label[label]}</h5>"
+            om2bnmc_html += f"<h5>{temp[label]}</h5>"
             om2bnmc_html += self.om_df_dct["bn"]["label_df_dct"][label].style.set_table_attributes('class="table"').format(precision=3).to_html()
         om2bnmc_html += "<h4> Muticlass Aggregation </h4>"
         om2bnmc_html += self.om_df_dct["mc"]["overall"].style.set_table_attributes('class="table"').format(precision=3).to_html()
@@ -635,7 +647,8 @@ if __name__ == "__main__":
     #create_run_report(odir+"/fting_B_mc", "mc", "svm")
     #create_run_report(odir+"/fting_C_bn", "bn", "svm")
     #create_run_report(odir+"/fting_D_mc", "mc", "svm")
-    #create_run_report(odir+"/fting_H_om", "om", "model")
+    #create_run_report(odir+"/fting_E_om", "om", "svm")
+    #create_run_report(odir+"/fting_G_om", "om", "svm")
     '''
     for mode in ["bn", "mc"]:#
         for cls_mode in ["rf"]:#"model", "svm"
@@ -643,3 +656,5 @@ if __name__ == "__main__":
     '''
     create_meta_report(odir, "om", "model")
     create_meta_report(odir, "om", "svm")
+    #create_meta_report(odir, "bn", "svm")
+    #create_meta_report(odir, "mc", "svm")
