@@ -20,6 +20,55 @@ logging.disable(logging.CRITICAL)
 import warnings
 warnings.filterwarnings("ignore")
 
+IDLBLLIB = { 
+    "bn":
+        {"id2label": {
+            "0": "non-incentive",
+            "1": "incentive"
+        },
+        "label2id": {
+            "incentive": 1,
+            "non-incentive": 0
+        }},
+    "mc":{
+        "id2label": {
+            "0": "Fine",
+            "1": "Supplies",
+            "2": "Technical_assistance",
+            "3": "Tax_deduction",
+            "4": "Credit",
+            "5": "Direct_payment"
+        },
+        "label2id": {
+            "Credit": 4,
+            "Direct_payment": 5,
+            "Fine": 0,
+            "Supplies": 1,
+            "Tax_deduction": 3,
+            "Technical_assistance": 2
+        }},
+    "om":{
+        "id2label": {
+            "0": "Non-Incentive",
+            "1": "Fine",
+            "2": "Supplies",
+            "3": "Technical_assistance",
+            "4": "Tax_deduction",
+            "5": "Credit",
+            "6": "Direct_payment"
+        },
+        "label2id": {
+            "Credit": 5,
+            "Direct_payment": 6,
+            "Fine": 1,
+            "Non-Incentive": 0,
+            "Supplies": 2,
+            "Tax_deduction": 4,
+            "Technical_assistance": 3
+        }
+    }
+}
+
 def encode_all_sents(all_sents, sbert_model):
     '''
     modified from previous repository's latent_embeddings_classifier.py
@@ -33,18 +82,22 @@ class ModelReport:
         self.cls_mode=cls_mode
         self.model_name = model_dir.split("/")[-1][:-3]
         self.model_name = self.model_name.split("\\")[-1]
-        self.metrics = self.load_metrics()
-        self.config = self.load_config()
-        self.id2label = self.config["id2label"]
-        self.label2id = self.config["label2id"]
-        self.real = None
-        self.predicted = None
         self.name_dct = {
             "paraphrase-xlm-r-multilingual-v1":"bert"
         }
         model_type = self.model_name.split("_")[0]
         self.callname = self.model_name.replace(model_type, self.name_dct[model_type])
         self.mode = self.callname.split("_")[1]
+        self.metrics = self.load_metrics()
+        self.config = self.load_config()
+        try:
+            self.id2label = self.config["id2label"]
+            self.label2id = self.config["label2id"]
+        except:
+            self.id2label = IDLBLLIB[self.mode]["id2label"]
+            self.label2id = IDLBLLIB[self.mode]["label2id"]
+        self.real = None
+        self.predicted = None
         self.r = self.callname.split("_")[-1][1:]
         self.cls_report = {}
         self.cm = []
@@ -547,7 +600,7 @@ class MetaRunReporter:
         overall_df = pd.DataFrame(index = list(self.run_collection), columns=["precision", "recall", "f1-score", "accuracy"])
         for rn in list(self.run_collection):
             rreport = self.run_collection[rn]
-            report_df = rreport.overall_df
+            report_df = rreport.om_df_dct["bn"]["overall"]
             for metric in report_df.columns:
                 overall_df.loc[rreport.run, metric]=report_df[metric]["Average"]
         self.om_df_dct["bn"]["overall"] = overall_df
@@ -555,7 +608,7 @@ class MetaRunReporter:
         label_dfdct = {str(i):pd.DataFrame(index = list(self.run_collection), columns=["precision", "recall", "f1-score"]) for i in range(2 if self.mode=="bn" else 6 if self.mode=="mc" else 7)}
         for rn in list(self.run_collection):
             rreport = self.run_collection[rn]
-            report_df_dct = rreport.label_df_dct
+            report_df_dct = rreport.om_df_dct["bn"]["label_df_dct"]
             for label in list(report_df_dct):
                 for metric in report_df_dct[label].columns:
                     label_dfdct[label].loc[rreport.run, metric] = report_df_dct[label][metric]["Average"]
@@ -565,7 +618,7 @@ class MetaRunReporter:
         overall_df = pd.DataFrame(index = list(self.run_collection), columns=["precision", "recall", "f1-score", "accuracy"])
         for rn in list(self.run_collection):
             rreport = self.run_collection[rn]
-            report_df = rreport.overall_df
+            report_df = rreport.om_df_dct["mc"]["overall"]
             for metric in report_df.columns:
                 overall_df.loc[rreport.run, metric]=report_df[metric]["Average"]
         self.om_df_dct["mc"]["overall"] = overall_df
@@ -573,7 +626,7 @@ class MetaRunReporter:
         label_dfdct = {str(i):pd.DataFrame(index = list(self.run_collection), columns=["precision", "recall", "f1-score"]) for i in range(2 if self.mode=="bn" else 6 if self.mode=="mc" else 7)}
         for rn in list(self.run_collection):
             rreport = self.run_collection[rn]
-            report_df_dct = rreport.label_df_dct
+            report_df_dct = rreport.om_df_dct["mc"]["label_df_dct"]
             for label in list(report_df_dct):
                 for metric in report_df_dct[label].columns:
                     label_dfdct[label].loc[rreport.run, metric] = report_df_dct[label][metric]["Average"]
@@ -582,7 +635,7 @@ class MetaRunReporter:
         custom_acc_df = pd.DataFrame(index = list(self.run_collection), columns=["acc_wo_taxded", "taxded_acc"])
         for rn in list(self.run_collection):
             rreport = self.run_collection[rn]
-            report_df = rreport.custom_acc_df
+            report_df = rreport.om_df_dct["mc"]["custom_acc"]
             for metric in report_df.columns:
                 custom_acc_df.loc[rreport.run, metric]=report_df[metric]["Average"]
         self.om_df_dct["mc"]["custom_acc"] = custom_acc_df
@@ -654,7 +707,7 @@ if __name__ == "__main__":
         for cls_mode in ["rf"]:#"model", "svm"
             create_meta_report(odir, mode, cls_mode)
     '''
-    create_meta_report(odir, "om", "model")
+    #create_meta_report(odir, "om", "model")
     create_meta_report(odir, "om", "svm")
     #create_meta_report(odir, "bn", "svm")
     #create_meta_report(odir, "mc", "svm")
