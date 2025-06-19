@@ -15,10 +15,15 @@ import numpy as np
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
 from sentence_transformers import SentenceTransformer
+from imblearn.over_sampling import RandomOverSampler
+from sklearn.utils import shuffle
 import logging
 logging.disable(logging.CRITICAL)
 import warnings
 warnings.filterwarnings("ignore")
+
+CWD = os.getcwd()
+INPUT_PTH = CWD+"/inputs/"
 
 IDLBLLIB = { 
     "bn":
@@ -77,25 +82,23 @@ def encode_all_sents(all_sents, sbert_model):
     return [torch.from_numpy(element).reshape((1, element.shape[0])) for element in stacked]
 
 class ModelReport:
-    def __init__(self, model_dir, cls_mode="model"):
+    def __init__(self, model_dir, cls_mode="model", ovs=False):
         self.model_dir = model_dir
         self.cls_mode=cls_mode
         self.model_name = model_dir.split("/")[-1][:-3]
         self.model_name = self.model_name.split("\\")[-1]
-        self.name_dct = {
-            "paraphrase-xlm-r-multilingual-v1":"bert"
-        }
-        model_type = self.model_name.split("_")[0]
-        self.callname = self.model_name.replace(model_type, self.name_dct[model_type])
+        self.callname = self.model_name
         self.mode = self.callname.split("_")[1]
         self.metrics = self.load_metrics()
         self.config = self.load_config()
+        self.ovs = False
         try:
             self.id2label = self.config["id2label"]
             self.label2id = self.config["label2id"]
         except:
             self.id2label = IDLBLLIB[self.mode]["id2label"]
             self.label2id = IDLBLLIB[self.mode]["label2id"]
+            self.ovs = ovs
         self.real = None
         self.predicted = None
         self.r = self.callname.split("_")[-1][1:]
@@ -124,7 +127,10 @@ class ModelReport:
             print("Loading tokenizer")
             tokenizer = AutoTokenizer.from_pretrained(self.model_dir)
             print("Loading model")
-            model = AutoModelForSequenceClassification.from_pretrained(self.model_dir, num_labels=num_lbs,id2label=self.id2label, label2id=self.label2id).to(dev)
+            try:
+                model = AutoModelForSequenceClassification.from_pretrained(self.model_dir, num_labels=num_lbs,id2label=self.id2label, label2id=self.label2id).to(dev)
+            except:
+                model = AutoModelForSequenceClassification.from_pretrained(self.model_dir, num_labels=num_lbs,id2label=self.id2label, label2id=self.label2id, trust_remote_code=True).to(dev)
             model.eval()
             print("Running model")
             for i in tqdm(range(0, len(sentences),eval_batch)):
@@ -143,7 +149,15 @@ class ModelReport:
         elif self.cls_mode in ["svm","rf"]:
             train_sents = dsdct["train"]["text"]+dsdct["test"]["text"]
             train_labels = dsdct["train"]["label"]+dsdct["test"]["label"]
-            model = SentenceTransformer(self.model_dir, device=dev)
+            if self.ovs:
+                ros = RandomOverSampler(sampling_strategy='auto', random_state=self.r)
+                train_texts_resampled, train_labels_resampled = ros.fit_resample(np.array(train_sents).reshape(-1, 1), np.array(train_labels))
+                train_texts_resampled, train_labels = shuffle(train_texts_resampled, train_labels_resampled, random_state=self.r)
+                train_sents = list(train_texts_resampled.flatten())
+            try:
+                model = SentenceTransformer(self.model_dir, device=dev)
+            except:
+                model = SentenceTransformer(self.model_dir, device=dev, trust_remote_code=True)
             train_embs = encode_all_sents(train_sents, model)
             print("Encoding test sentences.")
             test_embs = encode_all_sents(sentences, model)
@@ -160,7 +174,7 @@ class ModelReport:
         gc.collect()
         self.real = labels
         self.pred = prds_lst
-        with open(self.model_dir+f"/randp_{self.cls_mode}.json", "w", encoding="utf-8") as f:
+        with open(self.model_dir+f"/randp_{self.cls_mode}{'_ovs' if self.ovs else ''}.json", "w", encoding="utf-8") as f:
             json.dump({"real":labels,"pred":prds_lst}, f, ensure_ascii=False, indent=4)
     def load_randps(self, real, pred):
         self.real = real
@@ -334,7 +348,7 @@ class ModelReport:
                 pass
 
 class RunReporter:
-    def __init__(self, run_dir, mode):
+    def __init__(self, run_dir, mode, ovs = False):
         self.run_dir = run_dir
         self.mode = mode
         self.run_name = run_dir.split("/")[-1]
@@ -349,33 +363,38 @@ class RunReporter:
             exps.append(e)
         self.exps = list(set(exps))
         self.cls_mode = ""
-        with open(run_dir+"/run_details.json", "r", encoding="utf-8") as f:
-            self.meta_dct = json.load(f)
+        try:
+            with open(run_dir+"/run_details.json", "r", encoding="utf-8") as f:
+                self.meta_dct = json.load(f)
+        except:
+            with open(run_dir+"/run_details_0.json", "r", encoding="utf-8") as f:
+                self.meta_dct = json.load(f)
         self.id2label = {}
         self.overall_df = None
         self.label_df_dct = None
         self.eval_batch = 32
         self.custom_acc_df = None
         self.om_df_dct = None
+        self.ovs = ovs
     def load_model_reports(self, cls_mode, eval_batch=32):
         self.cls_mode = cls_mode
         self.model_reports = []
         self.eval_batch = eval_batch
         for model in tqdm(self.models):
-            report = ModelReport(model, self.cls_mode)
+            report = ModelReport(model, self.cls_mode, self.ovs)
             if report.mode == self.mode:
                 report.load_metrics()
                 report.load_config()
-                randp_json = report.model_dir+f"/randp_{report.cls_mode}.json"
+                randp_json = report.model_dir+f"/randp_{report.cls_mode}{'_ovs' if self.ovs else ''}.json"
                 if not os.path.exists(randp_json):
-                    report.calculate_randps(self.run_dir+f"/../../inputs/ds_{report.r}_{report.mode}", self.eval_batch)
+                    report.calculate_randps(f"{INPUT_PTH}/ds_{report.r}_{report.mode}", self.eval_batch)
                 else:
                     try:
                         with open(randp_json, "r", encoding="utf-8") as f:
                             randp = json.load(f)
                         report.load_randps(randp["real"], randp["pred"])
                     except json.JSONDecodeError as e:
-                        report.calculate_randps(self.run_dir+f"/../../inputs/ds_{report.r}_{report.mode}", self.eval_batch)
+                        report.calculate_randps(f"{INPUT_PTH}/ds_{report.r}_{report.mode}", self.eval_batch)
                 report.calc_metrics()
                 report.plot_cfmtx()
                 report.plot_validation_loss()
@@ -530,12 +549,12 @@ class RunReporter:
                         custom_acc_res = self.custom_acc_df.style.set_table_attributes('class="table"').format(precision=3).to_html() if self.mode in ["mc", "om"] else "",
                         figures_display_html = self.create_figure_display_html(),
                         om2bnmc = self.create_om2bnmc_df_html() if self.mode == "om" else "")
-        with open(os.path.join(self.run_dir, f"model_display_{self.run}_{self.mode}_{self.cls_mode}.html"),"w") as f:
+        with open(os.path.join(self.run_dir, f"model_display_{self.run}_{self.mode}_{self.cls_mode}{'_ovs' if self.ovs else ''}.html"),"w") as f:
             f.write(T)
         return None
 
 class MetaRunReporter:
-    def __init__(self, meta_run_dir, mode, cls_mode):
+    def __init__(self, meta_run_dir, mode, cls_mode, ovs = False):
         self.meta_run_dir = meta_run_dir
         self.mode = mode
         self.cls_mode = cls_mode
@@ -545,6 +564,7 @@ class MetaRunReporter:
         self.custom_acc_df = None
         self.id2label = {}
         self.om_df_dct = {}
+        self.ovs = ovs
     def process_runs(self, report_temp = False):
         run_collection = {}
         dir_names = glob.glob(self.meta_run_dir+f"/*{self.mode}")
@@ -668,28 +688,28 @@ class MetaRunReporter:
                         custom_acc_res = self.custom_acc_df.style.set_table_attributes('class="table"').format(precision=3).to_html() if self.mode =="mc" else "",
                         figures_display_html="None",
                         om2bnmc = self.create_om2bnmc_df_html() if self.mode == "om" else "")
-        with open(os.path.join(self.meta_run_dir, f"MetaDisplay_{self.mode}_{self.cls_mode}.html"),"w") as f:
+        with open(os.path.join(self.meta_run_dir, f"MetaDisplay_{self.mode}_{self.cls_mode}{'_ovs' if self.ovs else ''}.html"),"w") as f:
             f.write(T)
         return None
     
-def create_run_report(run_dir, mode, cls_mode):
-    rr = RunReporter(run_dir, mode)
+def create_run_report(run_dir, mode, cls_mode, ovs=False):
+    rr = RunReporter(run_dir, mode, ovs)
     rr.load_model_reports(cls_mode)# or "svm"
     rr.create_result_dfs()
     if mode=="om":
         rr.create_result_dfs_om2bnmc()
-    rr.make_report("./runrpt_template.html")
+    rr.make_report(f"{CWD}/classifier/runrpt_template.html")
 
-def create_meta_report(meta_dir, mode, cls_mode):
-    mrr = MetaRunReporter(meta_dir, mode, cls_mode)
-    mrr.process_runs("./runrpt_template.html")
+def create_meta_report(meta_dir, mode, cls_mode, ovs=False):
+    mrr = MetaRunReporter(meta_dir, mode, cls_mode, ovs)
+    mrr.process_runs(f"{CWD}/classifier/runrpt_template.html")
     mrr.generate_overall_df()
     mrr.generate_label_df()
     if mode in ["mc","om"]:
         mrr.generate_custom_acc_df()
         if mode=="om":
             mrr.generate_om2bnmc_dfs()
-    mrr.make_report("./meta_runrpt_template.html")
+    mrr.make_report(f"{CWD}/classifier/meta_runrpt_template.html")
 
 if __name__ == "__main__":
     cwd = os.getcwd()
@@ -708,6 +728,11 @@ if __name__ == "__main__":
             create_meta_report(odir, mode, cls_mode)
     '''
     #create_meta_report(odir, "om", "model")
-    create_meta_report(odir, "om", "svm")
-    #create_meta_report(odir, "bn", "svm")
-    #create_meta_report(odir, "mc", "svm")
+    #create_meta_report(odir, "om", "svm", True)
+    #create_run_report(odir+"/fting_L_bn", "bn", "svm")
+    #create_run_report(odir+"/fting_M_mc", "mc", "svm")
+    odir="E:/PhD/2June2025"
+    create_meta_report(odir, "bn", "svm")
+    create_meta_report(odir, "mc", "svm")
+    create_meta_report(odir, "bn", "model")
+    create_meta_report(odir, "mc", "model")
