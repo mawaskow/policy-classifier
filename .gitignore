@@ -1,9 +1,8 @@
-outputs/models
-outputs/fting*
-outputs/Meta*
+outputs
 inputs/ds*
 inputs/pol*
 outputs/automodels_nofreeze
 policy_scraping/policy_scraping/outputs/forestry
-venv/*
+venv
 inputs/polianna_models*
+wandb
