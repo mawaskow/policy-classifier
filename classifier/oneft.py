@@ -2,7 +2,7 @@
 import os, json, sys, time, gc
 import torch
 from datasets import DatasetDict
-from finetuning import finetune_roberta
+from finetuning import finetune_incmodel
 from finetune import load_labelintdcts
 
 int2label_dct, label2int_dct = load_labelintdcts()
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     else:
         hyper = hyper_dct[mode]
     hyper["r"]=r
-    metrics = finetune_roberta(
+    metrics = finetune_incmodel(
         ds,
         int2label_dct[mode],
         label2int_dct[mode],

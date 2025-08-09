@@ -5,15 +5,13 @@ from imblearn.over_sampling import RandomOverSampler
 from sklearn.utils import shuffle
 import numpy as np
 import torch.nn as nn
-#from classifier.finetune import finetune_roberta, load_labelintdcts, create_dsdict, create_om_dsdict
-#from classifier.run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab
 from finetune import load_labelintdcts, create_dsdict, create_om_dsdict
 from run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab
 import gc
 from sklearn.metrics import roc_curve, auc
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import label_binarize
-import wandb
+#import wandb
 import os, json
 cwd = os.getcwd() # should be base directory of repository
 import time
@@ -99,7 +97,7 @@ class WeightedTrainer(Trainer):
         # loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
         return (loss, outputs) if return_outputs else loss
 
-def finetune_roberta(datasetdct, int2label, label2int, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', output_dir=f"{os.getcwd()}/outputs/models", hyperparams=False, report_to="none", span=False):
+def finetune_incmodel(datasetdct, int2label, label2int, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', output_dir=f"{os.getcwd()}/outputs/models", hyperparams=False, report_to="none", span=False):
     '''
     '''
     if not hyperparams:
@@ -172,7 +170,7 @@ def finetune_roberta(datasetdct, int2label, label2int, mode, model_name="sentenc
         num_train_epochs=epochs,
         weight_decay=0.01,
         eval_strategy="epoch",
-        save_strategy="best",
+        save_strategy="epoch",
         logging_strategy="epoch",
         optim="adamw_torch",
         load_best_model_at_end=True,
@@ -263,149 +261,21 @@ def main():
     exps = range(10)#[0,3,6]#[6]#[0,3,6,9]#
     torch.cuda.empty_cache()
     gc.collect()
-    '''
-    letter = "N"
-    mode = "bn"
-    for r in exps:
-        print(f"\n\nBeginning run {letter} {mode} {r}\n")
-        output_dir = cwd+f"/outputs/fting_{letter}_{mode}"
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        ds = DatasetDict.load_from_disk(f"{input_dir}/ds_{r}_{mode}")
-        hyper = {
-            "epochs":5, 
-            "r":r, 
-            "lr":2E-5,
-            "batch_size":16,
-            "loss":None,
-            "oversampling":None,
-            "span_step":None
-            }
-        print(r, "A", torch.cuda.memory_allocated())
-        torch.cuda.empty_cache()
-        gc.collect()
-        print(r, "B", torch.cuda.memory_allocated())
-        #wandbrun = wandb.init(config=hyper, group=letter, name=f"{letter}{r}", reinit='create_new')
-        metrics = finetune_roberta(ds, int2label_dct[mode], label2int_dct[mode], mode, model_name='Alibaba-NLP/gte-base-en-v1.5', dev='cuda', output_dir=output_dir, hyperparams=hyper)
-        print(r, "C", torch.cuda.memory_allocated())
-        #wandbrun.finish()
-        metriclog[f'{mode}_{r}'] = metrics
-        hyp_rpt = {mode:hyper}
-        with open(output_dir+f"/run_details.json", "w", encoding="utf-8") as f:
-            json.dump(hyp_rpt, f, ensure_ascii=False, indent=4)
-        torch.cuda.empty_cache()
-        gc.collect()
-        time.sleep(3)
-        print(r, "D", torch.cuda.memory_allocated())
-        print(f"\n\nCompleted run {letter} {mode} {r}\n")
-    '''    
-    '''
-    letter = "O"
-    mode = "mc"
-    for r in exps:
-        output_dir = cwd+f"/outputs/fting_{letter}_{mode}"
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        ds = DatasetDict.load_from_disk(f"{input_dir}/ds_{r}_{mode}")
-        hyper = {
-            "epochs":15, 
-            "r":r, 
-            "lr":2E-5,
-            "batch_size":16,
-            "loss":None,
-            "oversampling":None,
-            "span_step":None
-            }
-        torch.cuda.empty_cache()
-        gc.collect()
-        #wandbrun = wandb.init(config=hyper, group=letter, name=f"{letter}{r}", reinit='create_new')
-        metrics = finetune_roberta(ds, int2label_dct[mode], label2int_dct[mode], mode, model_name='Alibaba-NLP/gte-base-en-v1.5', dev='cuda', output_dir=output_dir, hyperparams=hyper)
-        #wandbrun.finish()
-        metriclog[f'{mode}_{r}'] = metrics
-        hyp_rpt = {mode:hyper}
-        with open(output_dir+f"/run_details.json", "w", encoding="utf-8") as f:
-            json.dump(hyp_rpt, f, ensure_ascii=False, indent=4)
-        torch.cuda.empty_cache()
-        gc.collect()
-        time.sleep(3)
-        print(r, "D", torch.cuda.memory_allocated())
-    print(metriclog)
-    '''
 
 if __name__ == '__main__':
-    #letter = "R"
-    #mode = "bn"
-    exps = range(10)#[0,3,6]#[6]#[0,3,6,9]#
-    #model_name = "xlm-roberta-base"
-    #model_name = "microsoft/Multilingual-MiniLM-L12-H384"
-    #model_name = "distilbert-base-multilingual-cased"
-    #model_name = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    #model_name = "sentence-transformers/paraphrase-xlm-r-multilingual-v1"
-    #
+    exps = range(10)
     cwd = os.getcwd()
-    #output_dir = cwd+"/outputs/"
     output_dir = "E:/PhD/2June2025/"
     input_dir = cwd+"/inputs/"
     torch.cuda.empty_cache()
     gc.collect()
     int2label_dct, label2int_dct = load_labelintdcts()
-    '''
-    hyper = {"bn":{
-                "epochs":5, 
-                "lr":2E-5,
-                "batch_size":16,
-                "loss":None,
-                "oversampling":None,
-                "span_step":None,
-                "int2label":int2label_dct["bn"],
-                "label2int":label2int_dct["bn"]
-            },
-             "mc":{
-                "epochs":15, 
-                "lr":2E-5,
-                "batch_size":16,
-                "loss":None,
-                "oversampling":None,
-                "span_step":None,
-                "int2label":int2label_dct["mc"],
-                "label2int":label2int_dct["mc"]
-            }
-    }
-    '''
-    '''
-    letters = ["G", "H", "I", "J", "K", "L"]
-    models =["sentence-transformers/paraphrase-xlm-r-multilingual-v1", "sentence-transformers/all-mpnet-base-v2", "sentence-transformers/paraphrase-mpnet-base-v2", "sentence-transformers/paraphrase-multilingual-mpnet-base-v2", "thenlper/gte-base", "intfloat/e5-base-v2"]
-    for mode in ["bn", "mc"]:
-        for i in range(len(models)):
-            letter = letters[i]
-            model_name = models[i]
-            for r in exps:
-                while not torch.cuda.is_available():
-                    print("Cuda unavailable")
-                    time.sleep(3)
-                print("\nCuda freed!")
-                st = time.time()
-                print(f"\n--- Starting run {model_name} {letter} {r} ---")
-                print("Start", torch.cuda.memory_allocated())
-                modeldir = os.path.join(output_dir, f"fting_{letter}_{mode}")
-                os.makedirs(modeldir, exist_ok=True)
+    
+    #"sentence-transformers/paraphrase-xlm-r-multilingual-v1"
+    #"sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+    #"thenlper/gte-base"
+    #"intfloat/e5-base-v2"
 
-                subprocess.run([
-                    "python", "classifier/oneft.py",
-                    str(r),
-                    mode,
-                    letter,
-                    input_dir,
-                    modeldir,
-                    model_name,
-                    "loss"
-                ],
-                    check=True, capture_output=True, text=True)
-                print(f"\n--- Finished run {model_name} {letter} {r} ---")
-                print(f'\nDone in {round((time.time()-st)/60,2)} min')
-                print("End", torch.cuda.memory_allocated())
-                time.sleep(2)
-    '''
     ############
     letters = ["P", "Q", "R"]
     models =["sentence-transformers/paraphrase-multilingual-mpnet-base-v2", "thenlper/gte-base", "intfloat/e5-base-v2"]

@@ -1,3 +1,8 @@
+'''
+This file finetune.py is for importing functions into the workflow.ipynb notebook-- 
+if you're looking to operate the pipeline properly, you'll likely want to use 
+the subprocess structure found in finetuning.py.
+'''
 from sklearn.model_selection import train_test_split
 from sklearn import svm
 from sklearn.model_selection import cross_val_score
@@ -29,10 +34,10 @@ cwd = os.getcwd()
 output_dir = cwd+"/outputs/automodels_nofreeze"
 input_dir = cwd+"/inputs"
 
-from run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab, gen_bn_sentlab, gen_mc_sentlab
-#from classifier.run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab, gen_bn_sentlab, gen_mc_sentlab
+#from run_classifiers import gen_bn_sentlab, gen_mc_sentlab
+from classifier.run_classifiers import gen_bn_sentlab, gen_mc_sentlab
 
-def finetune_roberta(datasetdct, int2label, label2int, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', output_dir=f"{os.getcwd()}/outputs/models", hyperparams=False, oversampling=False):
+def finetune_incmodel(datasetdct, int2label, label2int, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', output_dir=f"{os.getcwd()}/outputs/models", hyperparams=False, oversampling=False):
     '''
     '''
     if not hyperparams:
@@ -90,10 +95,12 @@ def finetune_roberta(datasetdct, int2label, label2int, mode, model_name="sentenc
         per_device_eval_batch_size=batch_size,
         seed=9,
         num_train_epochs=epochs,
+        logging_strategy="epoch",
         weight_decay=0.01,
-        eval_strategy="steps",
-        save_strategy="best",
+        eval_strategy="epoch",
+        save_strategy="epoch",
         optim="adamw_torch",
+        report_to="none",
         load_best_model_at_end=True
     )
     trainer = Trainer(
@@ -272,52 +279,3 @@ def create_om_dsdict(sentences, labels, label2int_dct, amt=range(10), save=False
             ds.save_to_disk(path)
             print(f"Saved ds_{e}_om")
     return None
-
-def main():
-    models = {
-        "sentence-transformers/paraphrase-xlm-r-multilingual-v1":'bert', 
-        #"dunzhang/stella_en_1.5B_v5":'stella', 
-        #"Alibaba-NLP/gte-Qwen2-1.5B-instruct":'qwen', 
-        #"Alibaba-NLP/gte-large-en-v1.5":'glarg', 
-        #"sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2":'minilm'
-        }
-
-        #############
-    sims = [3,6,9]
-    int2label_dct, label2int_dct = load_labelintdcts()
-    for e in sims:
-        bn_ds = DatasetDict.load_from_disk(output_dir+f"/ds_{e}_bn")
-        mc_ds = DatasetDict.load_from_disk(output_dir+f"/ds_{e}_mc")
-        for model in models:
-            torch.cuda.empty_cache()
-            #try:
-            finetune_roberta(bn_ds, int2label_dct["bn"], label2int_dct["bn"], "bn", model_name=model, dev='cuda', rstate=e)
-            print(f"\nCompleted {model} binary model.")
-            #except Exception as e:
-            #    print(f"\n{model} binary model failed due to {e}")
-            torch.cuda.empty_cache()
-            #try:
-            finetune_roberta(mc_ds, int2label_dct["mc"], label2int_dct["mc"], "mc", model_name=model, dev='cuda', rstate=e)
-            print(f"\nCompleted {model} multiclass model.")
-            #except Exception as e:
-            #    print(f"\n{model} multiclass model failed due to {e}")
-    print('all done')
-
-if __name__ == "__main__":
-    with open(input_dir+"/19Jan25_firstdatarev.json","r", encoding="utf-8") as f:
-        dcno_json = json.load(f)
-    with open(input_dir+"/27Jan25_query_checked.json","r", encoding="utf-8") as f:
-        qry_json = json.load(f)
-    sents1, labels1 = dcno_to_sentlab(dcno_json)
-    sents2, labels2 = dcno_to_sentlab(qry_json)
-    # merge original and augmented datasets
-    sents2.extend(sents1)
-    labels2.extend(labels1)
-    all_sents, all_labs = remove_duplicates(group_duplicates(sents2,labels2,thresh=90))
-    #
-    int2label_dct, label2int_dct = load_labelintdcts()
-    sims = [3,6,9]
-    create_dsdict(all_sents, all_labs, label2int_dct, amt=sims, save=True, output_dir=output_dir)
-    main()
-
-

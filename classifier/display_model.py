@@ -397,7 +397,10 @@ class RunReporter:
                         report.calculate_randps(f"{INPUT_PTH}/ds_{report.r}_{report.mode}", self.eval_batch)
                 report.calc_metrics()
                 report.plot_cfmtx()
-                report.plot_validation_loss()
+                try:
+                    report.plot_validation_loss()
+                except:
+                    pass
                 if report.mode == "om":
                     report.calc_metrics_om2bnmc()
                     report.plot_cfmtx_om2bnmc()
@@ -410,7 +413,10 @@ class RunReporter:
         for report in self.model_reports:
             if report.mode == self.mode:
                 overall_dct[report.r]=[report.cls_report["overall"][key] for key in list(report.cls_report["overall"])]
-                overall_dct[report.r].append(min(report.val_loss))
+                try:
+                    overall_dct[report.r].append(min(report.val_loss))
+                except:
+                    overall_dct[report.r].append(np.NAN)
                 if self.mode in ["mc", "om"]:
                     cust_acc_dct[report.r] = [report.cls_report["custom_acc"][key] for key in list(report.cls_report["custom_acc"])]
                 #print(report.cls_report["labels"])
@@ -715,20 +721,11 @@ if __name__ == "__main__":
     cwd = os.getcwd()
     odir = cwd+"/../outputs"
     idir = cwd+"/../inputs"
-    
-    #create_run_report(odir+"/fting_A_bn", "bn", "svm")
-    #create_run_report(odir+"/fting_B_mc", "mc", "svm")
-    #create_run_report(odir+"/fting_C_bn", "bn", "svm")
-    #create_run_report(odir+"/fting_D_mc", "mc", "svm")
-    #create_run_report(odir+"/fting_E_om", "om", "svm")
-    #create_run_report(odir+"/fting_G_om", "om", "svm")
     '''
     for mode in ["bn", "mc"]:#
         for cls_mode in ["rf"]:#"model", "svm"
             create_meta_report(odir, mode, cls_mode)
     '''
-    #create_meta_report(odir, "om", "model")
-    #create_meta_report(odir, "om", "svm", True)
     #create_run_report(odir+"/fting_L_bn", "bn", "svm")
     #create_run_report(odir+"/fting_M_mc", "mc", "svm")
     odir="E:/PhD/2June2025"
