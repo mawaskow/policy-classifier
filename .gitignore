@@ -1,8 +1,6 @@
-outputs
+outputs/models
 inputs/ds*
 inputs/pol*
-outputs/automodels_nofreeze
-XXXpolicy_scraping/policy_scraping/outputs/forestry
 venv
 inputs/polianna_models*
 wandb
