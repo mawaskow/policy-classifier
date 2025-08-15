@@ -9,19 +9,16 @@ import os
 #
 base_dir = os.getcwd()
 kwds_forest = "\\keywords\\keywords_forestry.json"
-kwds_anti = "\\keywords\\keywords_peat.json"
 output_dir = "\\outputs\\forestry"
 #
 # Get files
 #
 with open(base_dir+kwds_forest, "r", encoding="utf-8") as infile:
     forkwddoc = json.load(infile)
-with open(base_dir+kwds_anti, "r", encoding="utf-8") as infile:
-    allkwddoc = json.load(infile)
     
 sr_kw_dct = forkwddoc["srch_en"]
-sr_akw_dct = allkwddoc["srch_anti_ie"]
-doc_akw_dct = allkwddoc["doc_anti_ie"]
+sr_akw_dct = forkwddoc["srch_anti_en"]
+doc_akw_dct = forkwddoc["doc_anti_ie"]
 
 #
 # spideytime
