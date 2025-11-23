@@ -1,6 +1,6 @@
 This repository presents the workflow for the Irish implementation of [this ML pipeline for policy analysis](https://www.sciencedirect.com/science/article/pii/S1389934121002306), adapted and updated from [this repository](https://github.com/wri-dssg-omdena/policy-data-analyzer).
 
-The final dataset produced through this pipeline can be found [here](https://huggingface.co/datasets/mawaskow/irish_forestry_incentives), complete with a dataset card for transparency and reproducibility.
+The final dataset produced through this pipeline can be found [here](https://huggingface.co/datasets/mawaskow/irish_forestry_incentives), as well as the [binary](https://huggingface.co/mawaskow/inc_sent_cls_bn) and [mutliclass](https://huggingface.co/mawaskow/inc_sent_cls_mc) classification models.
 
 #### About
 
@@ -14,3 +14,12 @@ This code demonstrates the full pipeline of our workshop paper (accepted at CPSS
 
 #### Use
 - *workflow.ipynb* : demonstrates the pipeline across its many functions-- this is a good starting point to understand the repository
+
+#### How to Cite
+@inproceedings{waskow2025enhancing,
+  title={Enhancing Policy Analysis with NLP: A Reproducible Approach to Incentive Classification},
+  author={Waskow, MA and McCrae, John Philip},
+  booktitle={Proceedings of the 21st Conference on Natural Language Processing (KONVENS 2025): Workshops},
+  pages={74--85},
+  year={2025}
+}
