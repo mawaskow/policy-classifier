@@ -4,7 +4,7 @@ The final dataset produced through this pipeline can be found [here](https://hug
 
 #### About
 
-This code demonstrates the full pipeline of our workshop paper (accepted at CPSS at KONVENS 2025) aimed at demonstrating the applicability of the original pipeline, used on Spanish-language forestry policies in 5 Latin American countries, to English-language forestry policies in Ireland. We gather policies with a scraper, extract cleaned sentences and label them for (binary) containing a policy incentive and (multiclass) the kind of policy incentive they contain, then train both a binary and a multiclass sentence classifier on the dataset.
+This code demonstrates the full pipeline of our [workshop paper](https://aclanthology.org/2025.konvens-2.6) aimed at demonstrating the applicability of the original pipeline, used on Spanish-language forestry policies in 5 Latin American countries, to English-language forestry policies in Ireland. We gather policies with a scraper, extract cleaned sentences and label them for (binary) containing a policy incentive and (multiclass) the kind of policy incentive they contain, then train both a binary and a multiclass sentence classifier on the dataset.
 
 #### Repo Structure
 - inputs : contains the json datasets of the hand-labeled, HITL-labeled, and validation datasets
