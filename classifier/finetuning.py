@@ -5,7 +5,7 @@ from imblearn.over_sampling import RandomOverSampler
 from sklearn.utils import shuffle
 import numpy as np
 import torch.nn as nn
-from finetune import load_labelintdcts, create_dsdict, create_om_dsdict
+from finetune import load_labelintdcts, create_dsdict, create_om_dsdict, generate_final_dsdicts
 from run_classifiers import group_duplicates, remove_duplicates, dcno_to_sentlab
 import gc
 from sklearn.metrics import roc_curve, auc
@@ -16,7 +16,7 @@ import os, json
 cwd = os.getcwd() # should be base directory of repository
 import time
 import torch
-from datasets import DatasetDict, Dataset
+from datasets import DatasetDict, Dataset, load_dataset
 import multiprocessing as mp
 import subprocess
 
@@ -234,6 +234,106 @@ def finetune_incmodel(datasetdct, int2label, label2int, mode, model_name="senten
     print(rstate, "E", torch.cuda.memory_allocated())
     return metrics
 
+def train_final_model(datasetdct, int2label, label2int, mode, dev='cuda', output_dir=f"{os.getcwd()}/outputs/models"):
+    '''
+    '''
+    model_name="sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+    if mode=="bn":
+        hyperparams = {
+            "epochs":2, 
+            "r":9,
+            "lr":2e-5,
+            "batch_size":16,
+            "oversampling":False
+            }
+    elif mode=="mc":
+        hyperparams = {
+            "epochs":5, 
+            "r":9,
+            "lr":2e-5,
+            "batch_size":16,
+            "oversampling":True
+            }
+    epochs = hyperparams["epochs"]
+    rstate = hyperparams["r"]
+    lr = hyperparams["lr"]
+    batch_size = hyperparams["batch_size"]
+    ovs_ratio = hyperparams["oversampling"]
+    start = time.time()
+    num_lbs = len(list(int2label))
+    print(f'\nLoading model {model_name}\n')
+    print("Tokenizing")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    def preprocess_function(examples):
+        return tokenizer(examples["text"], truncation=True, padding=True)#.to(dev)
+    if not ovs_ratio:
+        tokenized_train = datasetdct["train"].map(preprocess_function, batched=True)
+    else:
+        train_sents = datasetdct["train"]["text"]
+        train_labels = datasetdct["train"]["label"]
+        ros = RandomOverSampler(sampling_strategy='auto', random_state=rstate)
+        train_texts_resampled, train_labels_resampled = ros.fit_resample(np.array(train_sents).reshape(-1, 1), np.array(train_labels))
+        train_texts_resampled, train_labels_resampled = shuffle(train_texts_resampled, train_labels_resampled, random_state=rstate)
+        flattened_texts = list(train_texts_resampled.flatten())
+        conv_dct = {"text":flattened_texts, "label":train_labels_resampled}
+        conv_ds = Dataset.from_dict(conv_dct)
+        tokenized_train = conv_ds.map(preprocess_function, batched=True)
+    accuracy = evaluate.load("accuracy")
+    f1 = evaluate.load("f1")
+    recall = evaluate.load("recall")
+    metric_log = []
+    def calc_metrics(pred):
+        predictions, labels = pred
+        predictions = np.argmax(predictions, axis=1)
+        metrics = {
+            "accuracy": accuracy.compute(predictions=predictions, references=labels)["accuracy"],
+            #"f1": f1.compute(predictions=predictions, references=labels, average="weighted" if mode=="mc" else "binary")["f1"],
+            "f1": f1.compute(predictions=predictions, references=labels, average="weighted")["f1"],
+            "recall": recall.compute(predictions=predictions, references=labels, average="weighted")["recall"]
+        }
+        metric_log.append(metrics)
+        return metrics
+    print("Loading model")
+    #
+    model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_lbs,id2label=int2label, label2id=label2int, trust_remote_code=True).to(dev)
+    training_args = TrainingArguments(
+        output_dir=output_dir,
+        learning_rate=lr,
+        per_device_train_batch_size=batch_size,
+        seed=rstate,
+        num_train_epochs=epochs,
+        weight_decay=0.01,
+        optim="adamw_torch"
+    )
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_train,
+        processing_class=tokenizer,
+        compute_metrics=calc_metrics,
+    )
+    print("Training")
+    trainer.train()
+    train_losses = [log["loss"] for log in trainer.state.log_history if "loss" in log]
+    print("Saving")
+    model_fn = f"{model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}.pt"
+    trainer.save_model(output_dir+f"/{model_fn}")
+    #
+    metric_log.append({"train_loss":train_losses})
+    with open(output_dir+f"/{model_fn}/metrics.json", "w", encoding="utf-8") as f:
+        json.dump(metric_log, f, ensure_ascii=False, indent=4)
+    end = time.time()
+    print(f"\nSaved {model_name.split('/')[-1]}_{mode}_e{epochs}_r{rstate}.")
+    print(f'\nDone in {round((end-start)/60,2)} min')
+    print(rstate, "D", torch.cuda.memory_allocated())
+    del model
+    del trainer
+    del tokenizer
+    torch.cuda.empty_cache()
+    gc.collect()
+    print(rstate, "E", torch.cuda.memory_allocated())
+    return None
+
 def gernerate_dsdicts(input_dir, mode="split"):
     with open(input_dir+"/19Jan25_firstdatarev.json","r", encoding="utf-8") as f:
             dcno_json = json.load(f)
@@ -265,7 +365,8 @@ def main():
 if __name__ == '__main__':
     exps = range(10)
     cwd = os.getcwd()
-    output_dir = "E:/PhD/2June2025/"
+    #output_dir = "E:/PhD/2June2025/"
+    output_dir = cwd+"/outputs/"
     input_dir = cwd+"/inputs/"
     torch.cuda.empty_cache()
     gc.collect()
@@ -277,6 +378,7 @@ if __name__ == '__main__':
     #"intfloat/e5-base-v2"
 
     ############
+    '''
     letters = ["P", "Q", "R"]
     models =["sentence-transformers/paraphrase-multilingual-mpnet-base-v2", "thenlper/gte-base", "intfloat/e5-base-v2"]
     for mode in ["mc"]:
@@ -309,7 +411,31 @@ if __name__ == '__main__':
                 print(f'\nDone in {round((time.time()-st)/60,2)} min')
                 print("End", torch.cuda.memory_allocated())
                 time.sleep(2)
+    '''
+    #generate_final_dsdicts()
+    for mode in ["bn", "mc"]:
+        while not torch.cuda.is_available():
+            print("Cuda unavailable")
+            time.sleep(3)
+        print("\nCuda freed!")
+        st = time.time()
+        print(f"\n--- Starting {mode} run ---")
+        print("Start", torch.cuda.memory_allocated())
+        modeldir = os.path.join(output_dir, f"final_{mode}_model")
+        os.makedirs(modeldir, exist_ok=True)
 
-
+        subprocess.run([
+            "python", "classifier/finaltraining.py",
+            str(9),
+            mode,
+            input_dir,
+            modeldir,
+            "os" if mode=="mc" else "default"
+        ],
+            check=True, capture_output=True, text=True)
+        print(f"\n--- Finished {mode} run ---")
+        print(f'\nDone in {round((time.time()-st)/60,2)} min')
+        print("End", torch.cuda.memory_allocated())
+        time.sleep(2)
 
     

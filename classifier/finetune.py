@@ -25,7 +25,7 @@ import numpy as np
 import math
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, DataCollatorWithPadding, TrainingArguments, Trainer, AdamW, get_linear_schedule_with_warmup
 import evaluate
-from datasets import Dataset, DatasetDict
+from datasets import Dataset, DatasetDict, load_dataset
 from collections import Counter
 from peft import LoraConfig, get_peft_model
 from sklearn.utils import shuffle
@@ -34,8 +34,8 @@ cwd = os.getcwd()
 output_dir = cwd+"/outputs/automodels_nofreeze"
 input_dir = cwd+"/inputs"
 
-#from run_classifiers import gen_bn_sentlab, gen_mc_sentlab
-from classifier.run_classifiers import gen_bn_sentlab, gen_mc_sentlab
+from run_classifiers import gen_bn_sentlab, gen_mc_sentlab
+#from classifier.run_classifiers import gen_bn_sentlab, gen_mc_sentlab
 
 def finetune_incmodel(datasetdct, int2label, label2int, mode, model_name="sentence-transformers/paraphrase-xlm-r-multilingual-v1", dev='cuda', output_dir=f"{os.getcwd()}/outputs/models", hyperparams=False, oversampling=False):
     '''
@@ -256,6 +256,31 @@ def create_dsdict(sentences, labels, label2int_dct, amt=range(10), save=False, o
             print(f"Saved ds_{e}_mc")
     return None
 
+def generate_final_dsdicts(output_dir=cwd+"/inputs"):
+    int2label_dct, label2int_dct = load_labelintdcts()
+    print("Downloading dataset from hf...")
+    hf_ds = load_dataset("mawaskow/irish_forestry_incentives")
+    print("Downloaded dataset from hf")
+    bn_sents, bn_labels = gen_bn_sentlab(hf_ds['train']['text'], hf_ds['train']['label'], sanity_check=True)
+    mc_sents, mc_labels = gen_mc_sentlab(hf_ds['train']['text'], hf_ds['train']['label'], sanity_check=True)
+    bn_ds = DatasetDict({
+        "train": Dataset.from_list([{"text":text,"label":label2int_dct["bn"][label]} for text, label in zip(bn_sents, bn_labels)]),
+    })
+    mc_ds = DatasetDict({
+        "train": Dataset.from_list([{"text":text,"label":label2int_dct["mc"][label]} for text, label in zip(mc_sents, mc_labels)]),
+    })
+    ############
+    bn_path = output_dir+f"/ds_bn"
+    mc_path = output_dir+f"/ds_mc"
+    if not os.path.exists(bn_path):
+        os.makedirs(bn_path)
+    if not os.path.exists(mc_path):
+        os.makedirs(mc_path)
+    bn_ds.save_to_disk(bn_path)
+    print(f"Saved ds_bn")
+    mc_ds.save_to_disk(mc_path)
+    print(f"Saved ds_mc")
+
 def create_om_dsdict(sentences, labels, label2int_dct, amt=range(10), save=False, output_dir=f"{os.getcwd()}/outputs/models"):
     '''
     Create and save DatasetDicts containing train, test, and holdout sets.
@@ -279,3 +304,6 @@ def create_om_dsdict(sentences, labels, label2int_dct, amt=range(10), save=False
             ds.save_to_disk(path)
             print(f"Saved ds_{e}_om")
     return None
+
+if __name__=="__main__":
+    generate_final_dsdicts()
